@@ -188,6 +188,7 @@
             display: flex;
             flex-direction: column;
             gap: 1.5rem;
+            scroll-behavior: smooth; /* Smooth scroll efekti */
         }
 
         .message {
@@ -1538,6 +1539,82 @@
                 }
             });
         });
+
+        // Mesaj ekledikten sonra en alta scroll yapacak fonksiyon
+        function scrollToBottom() {
+            const chatMessages = document.querySelector('.chat-messages');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Mesaj gönderme fonksiyonunu güncelle
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const question = input.value.trim();
+            
+            if (!question) return;
+            
+            // Kullanıcı mesajını ekle
+            appendMessage('user', question);
+            
+            // Input'u temizle
+            input.value = '';
+            
+            // En alta scroll yap
+            scrollToBottom();
+            
+            try {
+                // ... mevcut kod ...
+                
+                // Her yeni assistant mesajından sonra scroll
+                appendMessage('assistant', response);
+                scrollToBottom();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                appendMessage('assistant', 'Sorry, an error occurred.');
+                scrollToBottom();
+            }
+        }
+
+        // Stream response fonksiyonunu da güncelle
+        async function streamResponse(query) {
+            try {
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(query)
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let message = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    
+                    const text = decoder.decode(value);
+                    const lines = text.split('\n');
+                    
+                    lines.forEach(line => {
+                        if (line.startsWith('data: ')) {
+                            const content = line.slice(6);
+                            message += content;
+                            updateLastMessage('assistant', message);
+                            // Her güncelleme sonrası scroll
+                            scrollToBottom();
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                appendMessage('assistant', 'Sorry, an error occurred while streaming the response.');
+                scrollToBottom();
+            }
+        }
+
+        // Chat container'a smooth scroll özelliği ekle
+        document.querySelector('.chat-messages').style.scrollBehavior = 'smooth';
     </script>
 </body>
 </html>
