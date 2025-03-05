@@ -1,0 +1,53 @@
+/* Navigation Bar */
+.top-nav {
+    background: var(--surface-light);
+    padding: 1rem 2rem;
+    border-bottom: 1px solid var(--surface-lighter);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.nav-links {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.nav-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.nav-link:hover {
+    background: var(--surface-lighter);
+    color: var(--text);
+}
+
+.nav-link.active {
+    background: var(--primary);
+    color: var(--text);
+}
+
+/* Common Variables */
+:root {
+    --primary: #0061FF;
+    --primary-light: #3D8BFF;
+    --surface: #171717;
+    --surface-light: #262626;
+    --surface-lighter: #404040;
+    --text: #FAFAFA;
+    --text-secondary: #A3A3A3;
+    --danger: #DC2626;
+    --success: #16A34A;
+    --warning: #F59E0B;
+}

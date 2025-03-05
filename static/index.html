@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet" />
+    <link href="/static/css/common.css" rel="stylesheet" />
     <style>
         :root {
             --primary: #0061FF;
@@ -36,7 +37,7 @@
         .app {
             display: grid;
             grid-template-columns: 300px 1fr;
-            height: 100vh;
+            height: calc(100vh - 64px); /* Navigation bar yüksekliğini çıkar */
             overflow: hidden;
         }
 
@@ -46,7 +47,8 @@
             border-right: 1px solid var(--surface-lighter);
             display: flex;
             flex-direction: column;
-            max-height: 100vh;
+            height: 100%;
+            overflow: hidden;
         }
 
         .sidebar-header {
@@ -98,7 +100,7 @@
             padding: 0.5rem;
             font-size: 0.875rem;
             overflow-y: auto;
-            height: calc(100vh - 200px);
+            flex: 1;
         }
 
         .folder-container {
@@ -171,7 +173,8 @@
         .main-content {
             display: flex;
             flex-direction: column;
-            height: 100vh;
+            height: 100%;
+            overflow: hidden;
         }
 
         .chat-container {
@@ -179,6 +182,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            height: 100%;
         }
 
         .chat-messages {
@@ -188,7 +192,6 @@
             display: flex;
             flex-direction: column;
             gap: 1.5rem;
-            scroll-behavior: smooth; /* Smooth scroll efekti */
         }
 
         .message {
@@ -746,16 +749,6 @@
             height: 300%;
         }
 
-        /* Sidebar footer stili */
-        .sidebar-footer {
-            padding: 1rem;
-            border-top: 1px solid var(--surface-lighter);
-            margin-top: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
         /* Admin ve Details buton stilleri */
         .admin-btn {
             width: 100%;
@@ -786,6 +779,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js"></script>
 </head>
 <body>
+    <nav class="top-nav">
+        <div class="nav-links">
+            <a href="/" class="nav-link active">🏠 Home</a>
+            <a href="/admin" class="nav-link">⚙️ Admin</a>
+        </div>
+        <div class="nav-links">
+            <span class="nav-link">👋 Welcome to Code Assistant</span>
+        </div>
+    </nav>
     <div class="app">
         <!-- Sidebar -->
         <aside class="sidebar">

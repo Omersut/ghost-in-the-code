@@ -141,8 +141,10 @@ async def get_available_files(repo_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/repo/{repo_id}/details")
-async def repo_details_page(repo_id: str):
+@app.get("/repo/{repo_id:path}/details")
+async def repo_details(repo_id: str):
+    # URL'deki özel karakterleri düzelt
+    repo_id = repo_id.replace("%20", " ").replace("-", " ")
     return FileResponse("static/repo-details.html")
 
 @app.get("/api/repo/{repo_id}/commits")
@@ -254,14 +256,13 @@ async def get_file_diff(repo_id: str, file_path: str, commit1: str, commit2: str
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/repo/{repo_id}/structure")
-async def get_repo_structure(repo_id: str, branch: Optional[str] = None):
+@app.get("/api/repo/{repo_id:path}/structure")
+async def get_repo_structure(repo_id: str):
     try:
+        # URL'deki özel karakterleri düzelt
+        repo_id = repo_id.replace("%20", " ").replace("-", " ")
         repo_path = repo_manager.base_path / repo_id
         repo = git.Repo(repo_path)
-        
-        if branch:
-            repo.git.checkout(branch)
         
         def build_tree(path):
             tree = []
@@ -285,9 +286,10 @@ async def get_repo_structure(repo_id: str, branch: Optional[str] = None):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/repo/{repo_id}/stats")
+@app.get("/api/repo/{repo_id:path}/stats")
 async def get_repo_stats(repo_id: str):
     try:
+        repo_id = repo_id.replace(" ", "-").replace("%20", "-")
         repo_path = repo_manager.base_path / repo_id
         repo = git.Repo(repo_path)
         
@@ -361,5 +363,40 @@ async def get_recent_activity(repo_id: str, limit: int = 10):
             })
         
         return activities
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/repo/{repo_id:path}/file-preview/{file_path:path}")
+async def get_file_preview(repo_id: str, file_path: str):
+    try:
+        repo_id = repo_id.replace("%20", " ").replace("-", " ")
+        repo_path = repo_manager.base_path / repo_id
+        file_path_full = repo_path / file_path
+        
+        # Binary dosya kontrolü
+        try:
+            with open(file_path_full, 'rb') as f:
+                content = f.read(1024)  # İlk 1KB'ı oku
+                if b'\x00' in content:
+                    return {"preview": "Binary file", "is_binary": True}
+        except:
+            return {"preview": "Error reading file", "error": True}
+        
+        # Text dosyası ise
+        try:
+            with open(file_path_full, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                preview = ''.join(lines[:10])  # İlk 10 satır
+                total_lines = len(lines)
+                
+                return {
+                    "preview": preview,
+                    "total_lines": total_lines,
+                    "is_binary": False,
+                    "size": file_path_full.stat().st_size
+                }
+        except UnicodeDecodeError:
+            return {"preview": "Binary file", "is_binary": True}
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 

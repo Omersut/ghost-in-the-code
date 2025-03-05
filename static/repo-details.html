@@ -6,6 +6,7 @@
     <title>Repository Details</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <link href="/static/css/common.css" rel="stylesheet" />
     <style>
         :root {
             --primary: #0061FF;
@@ -32,186 +33,57 @@
         .app {
             display: grid;
             grid-template-columns: 300px 1fr;
-            height: 100vh;
+            height: calc(100vh - 64px);
+            overflow: hidden;
         }
 
         /* File Explorer */
         .file-explorer {
-            background: var(--surface-light);
-            padding: 1rem;
-            overflow-y: auto;
-            border-right: 1px solid var(--surface-lighter);
+            display: grid;
+            grid-template-rows: 1fr auto;
+            height: 100%;
         }
 
         .file-tree {
-            font-size: 0.9rem;
-        }
-
-        .file-item, .folder-item {
-            padding: 0.5rem;
-            cursor: pointer;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .file-item:hover, .folder-item:hover {
-            background: var(--surface-lighter);
-        }
-
-        .folder-content {
-            margin-left: 1.5rem;
-            border-left: 1px solid var(--surface-lighter);
-            padding-left: 0.5rem;
-        }
-
-        /* Main Content */
-        .main-content {
-            padding: 2rem;
             overflow-y: auto;
-        }
-
-        .commits-section {
-            margin-bottom: 2rem;
-        }
-
-        .commit-card {
-            background: var(--surface-light);
             padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
         }
 
-        .commit-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 0.5rem;
-        }
-
-        .commit-message {
-            font-weight: 500;
-        }
-
-        .commit-meta {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-
-        .commit-stats {
-            display: flex;
-            gap: 1rem;
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            margin-top: 0.5rem;
-        }
-
-        /* Tabs */
-        .tabs {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .tab {
-            padding: 0.5rem 1rem;
-            background: var(--surface-light);
-            border: none;
-            border-radius: 4px;
-            color: var(--text);
-            cursor: pointer;
-        }
-
-        .tab.active {
-            background: var(--primary);
-        }
-
-        /* File History */
-        .file-history {
-            display: none;
-        }
-
-        .file-history.active {
-            display: block;
-        }
-
-        /* Yeni stiller */
-        .branch-selector {
-            margin-bottom: 1rem;
-            display: flex;
-            gap: 0.5rem;
-            align-items: center;
-        }
-        
-        .branch-btn {
-            padding: 0.5rem 1rem;
-            background: var(--surface-light);
-            border: none;
-            border-radius: 4px;
-            color: var(--text);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .branch-btn.active {
-            background: var(--primary);
-        }
-        
-        .file-content {
-            background: var(--surface-light);
-            padding: 1rem;
-            border-radius: 8px;
-            font-family: monospace;
-            white-space: pre-wrap;
-            overflow-x: auto;
-        }
-        
-        .diff-view {
-            font-family: monospace;
-            white-space: pre-wrap;
-        }
-        
-        .diff-view .addition {
-            background: rgba(46, 160, 67, 0.15);
-            color: #2ea043;
-        }
-        
-        .diff-view .deletion {
-            background: rgba(248, 81, 73, 0.15);
-            color: #f85149;
-        }
-        
-        .commit-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        
-        .commit-files {
-            margin-top: 1rem;
+        .file-preview {
+            height: 300px;
+            border-top: 1px solid var(--surface-lighter);
+            background: var(--surface);
             display: flex;
             flex-direction: column;
-            gap: 0.5rem;
-        }
-        
-        .file-change {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem;
-            background: var(--surface-light);
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        
-        .file-change:hover {
-            background: var(--surface-lighter);
         }
 
-        /* File Explorer stilleri */
+        .preview-header {
+            padding: 0.75rem;
+            background: var(--surface-light);
+            border-bottom: 1px solid var(--surface-lighter);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .preview-content {
+            flex: 1;
+            overflow: auto;
+            padding: 0.75rem;
+            margin: 0;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+            background: transparent !important;
+        }
+
+        .preview-footer {
+            padding: 0.5rem 0.75rem;
+            background: var(--surface-light);
+            border-top: 1px solid var(--surface-lighter);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
         .folder-container {
             margin: 0.25rem 0;
         }
@@ -224,16 +96,33 @@
             border-radius: 0.375rem;
             cursor: pointer;
             transition: all 0.2s;
+            position: relative;
         }
 
-        .folder-item:hover {
-            background: var(--surface-lighter);
+        .folder-item:hover::before {
+            content: '';
+            position: absolute;
+            left: -0.5rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--primary);
+        }
+
+        .folder-item.selected::before {
+            content: '';
+            position: absolute;
+            left: -0.5rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--primary);
         }
 
         .folder-icon {
             transition: transform 0.2s;
             display: inline-block;
-            font-size: 0.75rem;
+            font-size: 0.875rem;
         }
 
         .folder-content {
@@ -255,493 +144,414 @@
             border-radius: 0.375rem;
             cursor: pointer;
             transition: all 0.2s;
-        }
-
-        .file-item:hover {
-            background: var(--surface-lighter);
-        }
-
-        .file-item.selected {
-            background: var(--primary);
-            opacity: 0.8;
-        }
-
-        .item-name {
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        /* Branch seçici stilleri */
-        .branch-selector {
             position: relative;
         }
 
-        .branch-list {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            width: 100%;
-            background: var(--surface-light);
-            border: 1px solid var(--surface-lighter);
-            border-radius: 4px;
-            margin-top: 0.5rem;
-            display: none;
-            z-index: 10;
-        }
-
-        .branch-list.open {
-            display: block;
-        }
-
-        .branch-item {
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-        }
-
-        .branch-item:hover {
-            background: var(--surface-lighter);
-        }
-
-        /* Yeni stiller */
-        .repo-header {
-            background: var(--surface-light);
-            padding: 1.5rem;
-            border-bottom: 1px solid var(--surface-lighter);
-            margin-bottom: 2rem;
-        }
-        
-        .repo-header-content {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .repo-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        
-        .stat-card {
-            background: var(--surface);
-            padding: 1rem;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        
-        .stat-value {
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
-        
-        .stat-label {
-            font-size: 0.875rem;
-            color: var(--text-secondary);
-        }
-        
-        .activity-timeline {
-            margin-top: 2rem;
-        }
-        
-        .timeline-item {
-            display: flex;
-            gap: 1rem;
-            padding: 1rem 0;
-            border-left: 2px solid var(--surface-lighter);
-            margin-left: 1rem;
-            padding-left: 2rem;
-            position: relative;
-        }
-        
-        .timeline-item::before {
+        .file-item:hover::before {
             content: '';
             position: absolute;
-            left: -5px;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
+            left: -0.5rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
             background: var(--primary);
         }
-        
-        .file-preview {
-            position: relative;
-        }
-        
-        .file-toolbar {
-            position: sticky;
+
+        .file-item.selected::before {
+            content: '';
+            position: absolute;
+            left: -0.5rem;
             top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--primary);
+        }
+
+        /* Main Content */
+        .main-content {
+            height: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .repo-header {
+            padding: 1rem;
             background: var(--surface-light);
-            padding: 0.5rem;
+            border-bottom: 1px solid var(--surface-lighter);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid var(--surface-lighter);
-            z-index: 10;
         }
-        
-        .markdown-content {
-            padding: 1rem;
-            line-height: 1.6;
-        }
-        
-        .markdown-content h1,
-        .markdown-content h2,
-        .markdown-content h3 {
-            margin-top: 1.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .markdown-content p {
-            margin-bottom: 1rem;
-        }
-        
-        .markdown-content pre {
-            background: var(--surface);
-            padding: 1rem;
-            border-radius: 4px;
-            overflow-x: auto;
-        }
-        
-        .contributors-list {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        
-        .contributor-card {
-            background: var(--surface-light);
-            padding: 1rem;
-            border-radius: 8px;
+
+        .repo-info {
             display: flex;
             align-items: center;
             gap: 1rem;
         }
-        
-        .contributor-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
+
+        .repo-title {
+            font-size: 1.25rem;
+            font-weight: 500;
+        }
+
+        .repo-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .action-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            background: var(--surface);
+            border: none;
+            color: var(--text);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .action-btn:hover {
             background: var(--surface-lighter);
+        }
+
+        /* File Content Area */
+        .content-area {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: var(--surface);
+        }
+
+        .file-content {
+            flex: 1;
+            overflow: auto;
+            padding: 1rem;
+        }
+
+        .welcome-message {
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 600;
-        }
-
-        /* Yeni stiller */
-        .repo-header {
-            background: var(--surface-light);
-            padding: 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 2rem;
-        }
-        
-        .repo-nav {
-            display: flex;
-            gap: 1rem;
-            margin: 1rem 0;
-            border-bottom: 1px solid var(--surface-lighter);
-            padding-bottom: 1rem;
-        }
-        
-        .nav-item {
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            cursor: pointer;
+            height: 100%;
             color: var(--text-secondary);
         }
-        
-        .nav-item.active {
-            background: var(--primary);
-            color: var(--text);
+
+        /* Code styling */
+        pre {
+            margin: 0 !important;
+            background: transparent !important;
         }
-        
-        .section {
-            display: none;
+
+        code {
+            font-family: 'Fira Code', monospace !important;
+            font-size: 0.875rem !important;
         }
-        
-        .section.active {
-            display: block;
+
+        /* Utility classes */
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            background: var(--surface);
         }
-        
-        .grid-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
+
+        .badge.success {
+            background: var(--success);
+            color: white;
         }
-        
-        .stat-card {
+
+        .badge.warning {
+            background: var(--warning);
+            color: black;
+        }
+
+        /* Metrik Kartları */
+        .metrics-panel {
+            padding: 1rem;
             background: var(--surface-light);
-            padding: 1.5rem;
+            border-bottom: 1px solid var(--surface-lighter);
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+
+        .metric-card {
+            padding: 1rem;
+            background: var(--surface);
             border-radius: 8px;
             text-align: center;
         }
-        
-        .stat-value {
-            font-size: 2rem;
+
+        .metric-value {
+            font-size: 1.5rem;
             font-weight: 600;
             margin-bottom: 0.5rem;
         }
-        
-        .file-browser {
-            display: grid;
-            grid-template-columns: 300px 1fr;
-            gap: 2rem;
-            height: calc(100vh - 200px);
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
         }
-        
-        .file-tree {
-            background: var(--surface-light);
-            border-radius: 8px;
-            padding: 1rem;
-            overflow-y: auto;
-        }
-        
-        .file-content {
-            background: var(--surface-light);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        
-        .file-header {
-            padding: 1rem;
-            border-bottom: 1px solid var(--surface-lighter);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .file-actions {
+
+        /* Tab Navigation */
+        .tab-navigation {
             display: flex;
             gap: 0.5rem;
-        }
-        
-        .file-body {
             padding: 1rem;
-            overflow-y: auto;
-            max-height: calc(100vh - 300px);
+            background: var(--surface-light);
+            border-bottom: 1px solid var(--surface-lighter);
         }
-        
-        .commit-list {
+
+        .tab-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: var(--surface);
+            color: var(--text);
+            border-radius: 4px;
+            cursor: pointer;
             display: flex;
-            flex-direction: column;
-            gap: 1rem;
+            align-items: center;
+            gap: 0.5rem;
         }
-        
+
+        .tab-btn.active {
+            background: var(--primary);
+        }
+
+        /* Tab Contents */
+        .tab-contents {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .tab-content {
+            display: none;
+            height: 100%;
+            overflow: auto;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Commits List */
+        .commits-list {
+            padding: 1rem;
+        }
+
         .commit-card {
+            padding: 1rem;
             background: var(--surface-light);
             border-radius: 8px;
-            padding: 1.5rem;
+            margin-bottom: 1rem;
         }
-        
-        .branch-list {
+
+        .commit-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .commit-message {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+
+        .commit-meta {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .commit-files {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid var(--surface-lighter);
+            font-size: 0.875rem;
+        }
+
+        /* Contributors List */
+        .contributors-list {
+            padding: 1rem;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
             gap: 1rem;
         }
-        
-        .branch-card {
+
+        .contributor-card {
+            padding: 1rem;
             background: var(--surface-light);
             border-radius: 8px;
-            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
         }
-        
-        .markdown-content img {
-            max-width: 100%;
+
+        /* Statistics */
+        .stats-container {
+            padding: 1rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1rem;
         }
-        
-        .markdown-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1rem 0;
-        }
-        
-        .markdown-content th,
-        .markdown-content td {
-            padding: 0.5rem;
-            border: 1px solid var(--surface-lighter);
+
+        .chart-container {
+            padding: 1rem;
+            background: var(--surface-light);
+            border-radius: 8px;
         }
     </style>
 </head>
 <body>
+    <!-- Navigation -->
+    <nav class="top-nav">
+        <div class="nav-links">
+            <a href="/" class="nav-link">🏠 Home</a>
+            <a href="/admin" class="nav-link">⚙️ Admin</a>
+            <span class="nav-link active" id="repoNavTitle">📁 Repository</span>
+        </div>
+        <div class="nav-links">
+            <button class="nav-link" onclick="window.location.href='/'">🔍 Search Code</button>
+        </div>
+    </nav>
+
+    <!-- Main App -->
     <div class="app">
+        <!-- File Explorer -->
         <aside class="file-explorer">
-            <div class="branch-selector">
-                <button class="branch-btn" onclick="document.querySelector('.branch-list').classList.toggle('open')">
-                    <span>🌿</span>
-                    <span id="currentBranch">main</span>
-                    <span>▼</span>
-                </button>
-                <div class="branch-list" id="branchList"></div>
-            </div>
             <div class="file-tree" id="fileTree"></div>
-        </aside>
-
-        <main class="main-content">
-            <div class="repo-header">
-                <h1 id="repoName">Repository Details</h1>
-                <div class="repo-nav">
-                    <div class="nav-item active" data-section="overview">Overview</div>
-                    <div class="nav-item" data-section="files">Files</div>
-                    <div class="nav-item" data-section="commits">Commits</div>
-                    <div class="nav-item" data-section="branches">Branches</div>
-                </div>
-            </div>
-
-            <div id="overviewSection" class="section active">
-                <div class="grid-stats" id="repoStats"></div>
-                <div class="recent-activity" id="recentActivity"></div>
-            </div>
-
-            <div id="filesSection" class="section">
-                <div class="file-browser">
-                    <div class="file-tree" id="mainFileTree"></div>
-                    <div class="file-content">
-                        <div class="file-header" id="fileHeader"></div>
-                        <div class="file-body" id="fileContent"></div>
+            <div class="file-preview" id="filePreview">
+                <div class="preview-header">
+                    <span id="previewFileName">Select a file</span>
+                    <div class="preview-actions">
+                        <button class="action-btn" onclick="openFile()">Open</button>
                     </div>
                 </div>
+                <pre class="preview-content" id="previewContent">
+                    <code>Select a file to see preview</code>
+                </pre>
+                <div class="preview-footer">
+                    <span id="previewInfo"></span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="repo-header">
+                <div class="repo-info">
+                    <span class="repo-icon">📁</span>
+                    <h1 class="repo-title" id="repoName"></h1>
+                </div>
+                <div class="repo-actions">
+                    <button class="action-btn" onclick="cloneRepo()">🔄 Clone/Pull</button>
+                    <button class="action-btn" onclick="processRepo()">⚡ Process</button>
+                    <button class="action-btn" onclick="deleteRepo()">🗑️ Delete</button>
+                </div>
             </div>
 
-            <div id="commitsSection" class="section">
-                <div class="commit-list" id="commitList"></div>
-            </div>
+            <div class="content-area">
+                <!-- Git Metrikleri -->
+                <div class="metrics-panel">
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-value" id="totalCommits">-</div>
+                            <div class="metric-label">Total Commits</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value" id="totalBranches">-</div>
+                            <div class="metric-label">Branches</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value" id="totalContributors">-</div>
+                            <div class="metric-label">Contributors</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value" id="repoSize">-</div>
+                            <div class="metric-label">Repository Size</div>
+                        </div>
+                    </div>
+                </div>
 
-            <div id="branchesSection" class="section">
-                <div class="branch-list" id="mainBranchList"></div>
+                <!-- Tab Navigation -->
+                <div class="tab-navigation">
+                    <button class="tab-btn active" data-tab="files">📄 Files</button>
+                    <button class="tab-btn" data-tab="commits">📝 Commits</button>
+                    <button class="tab-btn" data-tab="contributors">👥 Contributors</button>
+                    <button class="tab-btn" data-tab="stats">📊 Statistics</button>
+                </div>
+
+                <!-- Tab Contents -->
+                <div class="tab-contents">
+                    <!-- Files Tab -->
+                    <div class="tab-content active" id="filesTab">
+                        <div class="file-content" id="fileContent">
+                            <div class="welcome-message">
+                                Select a file from the explorer to view its contents
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Commits Tab -->
+                    <div class="tab-content" id="commitsTab">
+                        <div class="commits-list" id="commitsList"></div>
+                    </div>
+
+                    <!-- Contributors Tab -->
+                    <div class="tab-content" id="contributorsTab">
+                        <div class="contributors-list" id="contributorsList"></div>
+                    </div>
+
+                    <!-- Statistics Tab -->
+                    <div class="tab-content" id="statsTab">
+                        <div class="stats-container">
+                            <div class="chart-container">
+                                <h3>Commit Activity</h3>
+                                <div id="commitActivityChart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <h3>File Types</h3>
+                                <div id="fileTypesChart"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script>
-        // Get repo ID from URL
-        const repoId = window.location.pathname.split('/')[2];
-        let currentBranch = 'main';
-        let selectedFile = null;
+        // Repo ID'sini URL'den al ve decode et
+        const repoId = decodeURIComponent(window.location.pathname.split('/')[2]);
+        
+        // Sayfa yüklendiğinde
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFileTree();
+            updateRepoTitle();
+            loadMetrics();
+            loadCommits();
+            loadContributors();
+            loadStats();
+        });
 
-        // Load commits
-        async function loadCommits() {
-            try {
-                const response = await fetch(`/api/repo/${repoId}/commits`);
-                const commits = await response.json();
-                
-                const commitsSection = document.getElementById('commitsSection');
-                commitsSection.innerHTML = commits.map(commit => `
-                    <div class="commit-card">
-                        <div class="commit-header">
-                            <div class="commit-message">${commit.message}</div>
-                            <div class="commit-hash">${commit.hash.slice(0, 7)}</div>
-                        </div>
-                        <div class="commit-meta">
-                            ${commit.author} committed on ${new Date(commit.date).toLocaleString()}
-                        </div>
-                        <div class="commit-stats">
-                            <span>${commit.stats.files} files changed</span>
-                            <span>+${commit.stats.insertions}</span>
-                            <span>-${commit.stats.deletions}</span>
-                        </div>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Error loading commits:', error);
-            }
+        // Repo başlığını güncelle
+        function updateRepoTitle() {
+            document.getElementById('repoName').textContent = repoId;
+            document.getElementById('repoNavTitle').textContent = `📁 ${repoId}`;
         }
 
-        // Load branches
-        async function loadBranches() {
-            try {
-                const response = await fetch(`/api/repo/${repoId}/branches`);
-                const branches = await response.json();
-                
-                // Branch listesini güncelle
-                const branchList = document.getElementById('branchList');
-                branchList.innerHTML = branches.map(branch => `
-                    <div class="branch-item" onclick="switchBranch('${branch.name}')">
-                        ${branch.name}
-                        ${branch.is_active ? '<span class="badge">Current</span>' : ''}
-                    </div>
-                `).join('');
-                
-                // Branch'ler sekmesini güncelle
-                const branchesSection = document.getElementById('branchesSection');
-                branchesSection.innerHTML = branches.map(branch => `
-                    <div class="branch-card">
-                        <div class="branch-header">
-                            <h3>${branch.name}</h3>
-                            ${branch.is_active ? '<span class="badge">Current</span>' : ''}
-                        </div>
-                        <div class="commit-info">
-                            <p>${branch.commit.message}</p>
-                            <small>
-                                ${branch.commit.author} committed on 
-                                ${new Date(branch.commit.date).toLocaleString()}
-                            </small>
-                        </div>
-                    </div>
-                `).join('');
-                
-                // Aktif branch'i güncelle
-                const activeBranch = branches.find(b => b.is_active);
-                if (activeBranch) {
-                    document.getElementById('currentBranch').textContent = activeBranch.name;
-                    currentBranch = activeBranch.name;
-                }
-            } catch (error) {
-                console.error('Error loading branches:', error);
-            }
-        }
-
-        // Folder toggle fonksiyonu
-        function toggleFolder(element) {
-            const content = element.nextElementSibling;
-            if (content) {
-                content.classList.toggle('open');
-                const icon = element.querySelector('.folder-icon');
-                if (icon) {
-                    icon.textContent = content.classList.contains('open') ? '📂' : '📁';
-                }
-            }
-        }
-
-        // File tree fonksiyonunu güncelle
+        // Dosya ağacını yükle ve önizleme özelliği ekle
         async function loadFileTree() {
             try {
-                const response = await fetch(`/api/repo/${repoId}/structure?branch=${currentBranch}`);
+                const response = await fetch(`/api/repo/${encodeURIComponent(repoId)}/structure`);
                 const structure = await response.json();
-                
-                function renderTree(items, level = 0) {
-                    return items.map(item => {
-                        if (item.type === 'folder') {
-                            return `
-                                <div class="folder-container">
-                                    <div class="folder-item" style="padding-left: ${level * 20}px" onclick="toggleFolder(this)">
-                                        <span class="folder-icon">📁</span>
-                                        <span class="item-name">${item.name}</span>
-                                    </div>
-                                    <div class="folder-content">
-                                        ${renderTree(item.children || [], level + 1)}
-                                    </div>
-                                </div>
-                            `;
-                        } else {
-                            return `
-                                <div class="file-item" style="padding-left: ${level * 20}px" 
-                                     onclick="loadFileContent('${item.path}'); loadFileHistory('${item.path}');">
-                                    <span class="file-icon">📄</span>
-                                    <span class="item-name">${item.name}</span>
-                                </div>
-                            `;
-                        }
-                    }).join('');
-                }
                 
                 document.getElementById('fileTree').innerHTML = renderTree(structure);
             } catch (error) {
@@ -749,26 +559,78 @@
             }
         }
 
-        // Load file content
-        async function loadFileContent(path, commit = null) {
+        // Dosya önizleme
+        async function previewFile(path) {
             try {
-                const response = await fetch(
-                    `/api/repo/${repoId}/file-content/${path}${commit ? `?commit=${commit}` : ''}`
-                );
+                const response = await fetch(`/api/repo/${encodeURIComponent(repoId)}/file-preview/${path}`);
                 const data = await response.json();
                 
-                // Toolbar'ı güncelle
-                document.getElementById('fileToolbar').innerHTML = `
-                    <div class="file-info">
-                        <span class="file-path">${path}</span>
-                    </div>
-                    <div class="file-actions">
-                        <button onclick="loadFileHistory('${path}')">History</button>
-                        <button onclick="viewRaw('${path}')">Raw</button>
-                    </div>
-                `;
+                document.getElementById('previewFileName').textContent = path.split('/').pop();
                 
-                // İçeriği göster
+                if (data.is_binary) {
+                    document.getElementById('previewContent').innerHTML = 'Binary file';
+                    document.getElementById('previewInfo').textContent = `Binary file - ${formatSize(data.size)}`;
+                } else {
+                    document.getElementById('previewContent').innerHTML = `<code class="language-${getLanguage(path)}">${
+                        data.preview.replace(/&/g, '&amp;')
+                                  .replace(/</g, '&lt;')
+                                  .replace(/>/g, '&gt;')
+                    }</code>`;
+                    document.getElementById('previewInfo').textContent = 
+                        `${data.total_lines} lines - ${formatSize(data.size)}`;
+                    Prism.highlightElement(document.querySelector('#previewContent code'));
+                }
+            } catch (error) {
+                console.error('Error loading file preview:', error);
+            }
+        }
+
+        // Dosya seçildiğinde
+        function selectFile(element, path) {
+            // Önceki seçimi kaldır
+            document.querySelectorAll('.file-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Yeni seçimi işaretle
+            element.classList.add('selected');
+            
+            // Önizlemeyi göster
+            previewFile(path);
+        }
+
+        // Ağaç yapısını oluştur
+        function renderTree(items, level = 0) {
+            return items.map(item => {
+                if (item.type === 'folder') {
+                    return `
+                        <div class="folder-container">
+                            <div class="folder-item" onclick="toggleFolder(this)">
+                                <span class="folder-icon">📁</span>
+                                <span>${item.name}</span>
+                            </div>
+                            <div class="folder-content">
+                                ${renderTree(item.children || [], level + 1)}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    return `
+                        <div class="file-item" onclick="selectFile(this, '${item.path}')">
+                            <span class="file-icon">📄</span>
+                            <span>${item.name}</span>
+                        </div>
+                    `;
+                }
+            }).join('');
+        }
+
+        // Dosya içeriğini yükle
+        async function loadFileContent(path) {
+            try {
+                const response = await fetch(`/api/repo/${encodeURIComponent(repoId)}/file-content/${path}`);
+                const data = await response.json();
+                
                 if (data.is_markdown) {
                     document.getElementById('fileContent').innerHTML = `
                         <div class="markdown-content">${data.content}</div>
@@ -790,39 +652,43 @@
                     Prism.highlightAll();
                 }
                 
-                selectedFile = path;
             } catch (error) {
                 console.error('Error loading file content:', error);
             }
         }
 
-        // Load file history
-        async function loadFileHistory(path) {
-            try {
-                const response = await fetch(`/api/repo/${repoId}/file-history/${path}`);
-                const history = await response.json();
-                
-                const fileHistory = document.getElementById('fileHistory');
-                fileHistory.innerHTML = history.map(commit => `
-                    <div class="commit-card">
-                        <div class="commit-header">
-                            <div class="commit-message">${commit.message}</div>
-                            <div class="commit-hash">${commit.hash.slice(0, 7)}</div>
-                        </div>
-                        <div class="commit-meta">
-                            ${commit.author} committed on ${new Date(commit.date).toLocaleString()}
-                        </div>
-                        <button onclick="loadFileContent('${path}', '${commit.hash}')">
-                            View this version
-                        </button>
-                    </div>
-                `).join('');
-            } catch (error) {
-                console.error('Error loading file history:', error);
+        // Klasör aç/kapa
+        function toggleFolder(element) {
+            const content = element.nextElementSibling;
+            if (content) {
+                content.classList.toggle('open');
+                const icon = element.querySelector('.folder-icon');
+                if (icon) {
+                    icon.textContent = content.classList.contains('open') ? '📂' : '📁';
+                }
             }
         }
 
-        // Dosya uzantısına göre dil belirleme fonksiyonu
+        // Raw dosya görüntüle
+        function viewRaw() {
+            if (!selectedFile) return;
+            window.open(`/api/repo/${repoId}/file-content/${selectedFile}?raw=true`);
+        }
+
+        // Yardımcı fonksiyonlar
+        function formatSize(bytes) {
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let size = bytes;
+            let unitIndex = 0;
+            
+            while (size >= 1024 && unitIndex < units.length - 1) {
+                size /= 1024;
+                unitIndex++;
+            }
+            
+            return `${size.toFixed(1)} ${units[unitIndex]}`;
+        }
+
         function getLanguage(path) {
             const ext = path.split('.').pop().toLowerCase();
             const languageMap = {
@@ -853,140 +719,107 @@
             return languageMap[ext] || 'plaintext';
         }
 
-        // Branch değiştirme fonksiyonu
-        async function switchBranch(branchName) {
+        // Metrikleri yükle
+        async function loadMetrics() {
             try {
-                currentBranch = branchName;
-                document.getElementById('currentBranch').textContent = branchName;
-                await loadFileTree();  // Dosya ağacını yeniden yükle
-                
-                // Branch butonlarını güncelle
-                document.querySelectorAll('.branch-btn').forEach(btn => {
-                    btn.classList.toggle('active', btn.textContent.includes(branchName));
-                });
-            } catch (error) {
-                console.error('Error switching branch:', error);
-            }
-        }
-
-        // Navigation
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', () => {
-                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-                item.classList.add('active');
-                
-                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-                document.getElementById(`${item.dataset.section}Section`).classList.add('active');
-                
-                // Load section data
-                switch(item.dataset.section) {
-                    case 'overview':
-                        loadRepoStats();
-                        loadActivity();
-                        break;
-                    case 'files':
-                        loadFileTree();
-                        break;
-                    case 'commits':
-                        loadCommits();
-                        break;
-                    case 'branches':
-                        loadBranches();
-                        break;
-                }
-            });
-        });
-
-        // Repo istatistiklerini yükle
-        async function loadRepoStats() {
-            try {
-                const response = await fetch(`/api/repo/${repoId}/stats`);
+                const response = await fetch(`/api/repo/${encodeURIComponent(repoId)}/stats`);
                 const stats = await response.json();
                 
-                document.getElementById('repoStats').innerHTML = `
-                    <div class="stat-card">
-                        <div class="stat-value">${stats.total_commits}</div>
-                        <div class="stat-label">Total Commits</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${stats.total_branches}</div>
-                        <div class="stat-label">Branches</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${stats.total_files}</div>
-                        <div class="stat-label">Files</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value">${formatSize(stats.total_size)}</div>
-                        <div class="stat-label">Repository Size</div>
-                    </div>
-                `;
+                document.getElementById('totalCommits').textContent = stats.total_commits;
+                document.getElementById('totalBranches').textContent = stats.total_branches;
+                document.getElementById('totalContributors').textContent = stats.contributors.length;
+                document.getElementById('repoSize').textContent = formatSize(stats.total_size);
             } catch (error) {
-                console.error('Error loading repo stats:', error);
+                console.error('Error loading metrics:', error);
             }
         }
 
-        // Aktivite zaman çizelgesini yükle
-        async function loadActivity() {
+        // Commit geçmişini yükle
+        async function loadCommits() {
             try {
-                const response = await fetch(`/api/repo/${repoId}/recent-activity`);
-                const activities = await response.json();
+                const response = await fetch(`/api/repo/${encodeURIComponent(repoId)}/commits`);
+                const commits = await response.json();
                 
-                document.getElementById('activityTimeline').innerHTML = activities.map(activity => `
-                    <div class="timeline-item">
-                        <div class="timeline-content">
-                            <div class="commit-message">${activity.message}</div>
-                            <div class="commit-meta">
-                                ${activity.author.name} committed ${formatDate(activity.date)}
+                document.getElementById('commitsList').innerHTML = commits.map(commit => `
+                    <div class="commit-card">
+                        <div class="commit-header">
+                            <div class="commit-hash" title="${commit.hash}">
+                                ${commit.hash.substring(0, 7)}
                             </div>
-                            <div class="changed-files">
-                                ${activity.changed_files.map(file => `
-                                    <div class="file-change">
-                                        <span>${file.path}</span>
-                                        <span class="changes">
-                                            +${file.changes.insertions} -${file.changes.deletions}
-                                        </span>
-                                    </div>
-                                `).join('')}
+                            <div class="commit-date">
+                                ${new Date(commit.date).toLocaleString()}
+                            </div>
+                        </div>
+                        <div class="commit-message">${commit.message}</div>
+                        <div class="commit-meta">
+                            <span class="author">👤 ${commit.author}</span>
+                            <span class="changes">
+                                📝 ${commit.stats.files} files 
+                                (<span class="additions">+${commit.stats.insertions}</span>
+                                <span class="deletions">-${commit.stats.deletions}</span>)
+                            </span>
+                        </div>
+                        <div class="commit-files">
+                            ${Object.entries(commit.stats.files || {}).map(([file, stats]) => `
+                                <div class="changed-file">
+                                    <span class="file-name">${file}</span>
+                                    <span class="file-changes">
+                                        +${stats.insertions || 0} -${stats.deletions || 0}
+                                    </span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading commits:', error);
+            }
+        }
+
+        // Contributors bilgilerini yükle
+        async function loadContributors() {
+            try {
+                const response = await fetch(`/api/repo/${encodeURIComponent(repoId)}/stats`);
+                const stats = await response.json();
+                
+                document.getElementById('contributorsList').innerHTML = stats.contributors.map(contributor => `
+                    <div class="contributor-card">
+                        <div class="contributor-info">
+                            <div class="contributor-name">${contributor.name}</div>
+                            <div class="contributor-email">${contributor.email}</div>
+                            <div class="contributor-last-active">
+                                Last active: ${new Date(contributor.date).toLocaleDateString()}
                             </div>
                         </div>
                     </div>
                 `).join('');
             } catch (error) {
-                console.error('Error loading activity:', error);
+                console.error('Error loading contributors:', error);
             }
         }
 
-        // Yardımcı fonksiyonlar
-        function formatSize(bytes) {
-            const units = ['B', 'KB', 'MB', 'GB'];
-            let size = bytes;
-            let unitIndex = 0;
-            
-            while (size >= 1024 && unitIndex < units.length - 1) {
-                size /= 1024;
-                unitIndex++;
-            }
-            
-            return `${size.toFixed(1)} ${units[unitIndex]}`;
-        }
-
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            return date.toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remove active class from all tabs
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab
+                btn.classList.add('active');
+                document.getElementById(`${btn.dataset.tab}Tab`).classList.add('active');
             });
-        }
+        });
 
-        // Initial load
-        loadRepoStats();
-        loadActivity();
-        loadFileTree();
-        loadBranches();
+        // Dosyayı ana içerik alanında aç
+        function openFile() {
+            const fileName = document.getElementById('previewFileName').textContent;
+            if (fileName !== 'Select a file') {
+                loadFileContent(fileName);
+                // Files tab'ına geç
+                document.querySelector('[data-tab="files"]').click();
+            }
+        }
     </script>
 </body>
 </html> 
