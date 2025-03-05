@@ -651,6 +651,131 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
+        /* Tooltip stilleri */
+        [data-tooltip] {
+            position: relative;
+            cursor: help;
+        }
+
+        [data-tooltip]:before {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 12px;
+            background: var(--surface-light);
+            color: var(--text);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        [data-tooltip]:hover:before {
+            opacity: 1;
+            visibility: visible;
+            bottom: 120%;
+        }
+
+        /* Daha yavaş scroll */
+        .chat-messages {
+            scroll-behavior: smooth;
+            scroll-timeline: 800ms ease;  /* Daha yavaş scroll */
+        }
+
+        .welcome-container {
+            border-bottom: 1px solid var(--surface-lighter);
+
+        }
+        /* Yeni UI elementleri için stiller */
+        .welcome-message {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .feature-hint {
+            background: var(--surface-light);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem;
+            border-left: 4px solid var(--primary);
+            font-size: 0.9rem;
+            animation: fadeIn 0.5s ease;
+
+        }
+
+        .context-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            background: var(--surface-lighter);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Gelişmiş buton stilleri */
+        .query-type-btn {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .query-type-btn:after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s ease, height 0.6s ease;
+        }
+
+        .query-type-btn:hover:after {
+            width: 300%;
+            height: 300%;
+        }
+
+        /* Sidebar footer stili */
+        .sidebar-footer {
+            padding: 1rem;
+            border-top: 1px solid var(--surface-lighter);
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        /* Admin ve Details buton stilleri */
+        .admin-btn {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--surface-lighter);
+            border-radius: 0.5rem;
+            color: var(--text);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .admin-btn:hover {
+            background: var(--surface-lighter);
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
@@ -665,10 +790,14 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <select id="projectSelect" class="project-select">
+                <select id="projectSelect" class="project-select" data-tooltip="Select a repository to start querying">
                     <option value="">Select Repository...</option>
                 </select>
                 <!-- Admin Panel Linki -->
+            
+                <div class="sidebar-footer">
+                    <!-- Admin ve Details butonları burada eklenecek -->
+                </div>
                 <a href="/admin" class="admin-link">
                     <button class="admin-btn">
                         ⚙️ Admin Panel
@@ -677,13 +806,13 @@
             </div>
             
             <div class="query-types">
-                <button class="query-type-btn" data-type="all" onclick="setQueryType('all')">
+                <button class="query-type-btn" data-type="all" data-tooltip="Search across all repositories">
                     🔍 All Repositories
                 </button>
-                <button class="query-type-btn" data-type="repo" onclick="setQueryType('repo')">
+                <button class="query-type-btn" data-type="repo" data-tooltip="Focus on the current repository">
                     📁 Current Repository
                 </button>
-                <button class="query-type-btn" data-type="files" data-action="select-files">
+                <button class="query-type-btn" data-type="files" data-tooltip="Select specific files to query">
                     📄 Selected Files
                 </button>
             </div>
@@ -691,11 +820,25 @@
             <div class="selected-context" id="selectedContext"></div>
             
             <div class="file-explorer" id="projectTree"></div>
+
+        
         </aside>
 
         <!-- Main Content -->
         <main class="main-content">
             <div class="chat-container">
+              <div class="welcome-container">
+              
+
+                <div class="feature-hint" id="repoHint">
+                    💡 Tip: Select a repository from the dropdown to get started
+                </div>
+
+                <div class="feature-hint" id="queryHint" style="display: none;">
+                    💡 Try asking about specific files or the entire codebase
+                </div>
+              </div>
+
                 <div class="chat-messages" id="chatMessages">
                     <!-- Hoşgeldin mesajı -->
                     <div class="message assistant-message">
@@ -749,6 +892,24 @@
         let currentRequest = null;
         let currentRepo = '';
         
+        // Kullanıcı yönlendirme sistemi
+        const userGuide = {
+            showRepoHint: () => {
+                document.getElementById('repoHint').style.display = 'block';
+                document.getElementById('queryHint').style.display = 'none';
+            },
+            
+            showQueryHint: () => {
+                document.getElementById('repoHint').style.display = 'none';
+                document.getElementById('queryHint').style.display = 'block';
+            },
+            
+            hideAllHints: () => {
+                document.getElementById('repoHint').style.display = 'none';
+                document.getElementById('queryHint').style.display = 'none';
+            }
+        };
+
         // Sayfa yüklendiğinde repoları getir
         async function loadProjects() {
             try {
@@ -1400,12 +1561,37 @@
             return file;
         }
 
-        // Proje seçimi değiştiğinde çağrılacak fonksiyon
+        // Repo seçildiğinde
         document.getElementById('projectSelect').addEventListener('change', async (e) => {
             const projectId = e.target.value;
             if (projectId) {
                 currentProject = projectId;
                 await loadProject(projectId);
+                
+                // Admin ve Details butonlarını ekle/güncelle
+                const adminContainer = document.querySelector('.sidebar-footer') || document.createElement('div');
+                adminContainer.className = 'sidebar-footer';
+                
+                // Önce mevcut butonları temizle
+                adminContainer.innerHTML = '';
+                
+                // Details butonu
+                const detailsBtn = document.createElement('button');
+                detailsBtn.className = 'admin-btn';
+                detailsBtn.innerHTML = '📊 Repository Details';
+                detailsBtn.onclick = () => window.location.href = `/repo/${encodeURIComponent(projectId)}/details`;
+                
+                // Admin butonu
+              
+                
+                // Butonları container'a ekle
+                adminContainer.appendChild(detailsBtn);
+                
+                // Container'ı sidebar'a ekle (eğer yoksa)
+                const sidebar = document.querySelector('.sidebar');
+                if (!document.querySelector('.sidebar-footer')) {
+                    sidebar.appendChild(adminContainer);
+                }
             }
         });
 
@@ -1615,6 +1801,47 @@
 
         // Chat container'a smooth scroll özelliği ekle
         document.querySelector('.chat-messages').style.scrollBehavior = 'smooth';
+
+        // Repo seçildiğinde
+        document.getElementById('projectSelect').addEventListener('change', (e) => {
+            if (e.target.value) {
+                userGuide.showQueryHint();
+            } else {
+                userGuide.showRepoHint();
+            }
+        });
+
+        // İlk yüklemede
+        document.addEventListener('DOMContentLoaded', () => {
+            userGuide.showRepoHint();
+            
+            // Welcome message'ı göster
+            const chatMessages = document.querySelector('.chat-messages');
+            if (!chatMessages.hasChildNodes()) {
+                chatMessages.innerHTML = `
+                    <div class="welcome-message">
+                        <p>Select a repository and start asking questions about the code.</p>
+                    </div>
+                `;
+            }
+        });
+
+        // Context badge'i güncelle
+        function updateContextBadge() {
+            const badge = document.createElement('div');
+            badge.className = 'context-badge';
+            
+            if (currentQueryType === 'all') {
+                badge.innerHTML = '🔍 Searching all repositories';
+            } else if (currentQueryType === 'repo') {
+                badge.innerHTML = `📁 In: ${currentRepo || 'No repository selected'}`;
+            } else {
+                badge.innerHTML = `📄 Files: ${selectedFiles.size} selected`;
+            }
+            
+            document.getElementById('selectedContext').innerHTML = '';
+            document.getElementById('selectedContext').appendChild(badge);
+        }
     </script>
 </body>
 </html>

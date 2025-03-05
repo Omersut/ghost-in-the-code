@@ -188,6 +188,65 @@
         .btn-success { background: var(--success); color: white; }
         .btn-warning { background: var(--warning); color: black; }
         .btn-danger { background: var(--danger); color: white; }
+
+        /* Admin panel tooltip'leri */
+        .admin-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: auto;
+        }
+
+        .action-btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .action-btn:hover {
+            background: var(--surface-lighter);
+        }
+
+        /* Status bildirimleri */
+        .status-message {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            background: var(--surface-light);
+        }
+
+        /* İşlem açıklamaları */
+        .process-info {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            background: var(--surface-light);
+        }
+
+        .info-item {
+            margin-bottom: 0.5rem;
+        }
+
+        .info-item h3 {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .info-item p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
     </style>
 </head>
 <body>
@@ -211,8 +270,10 @@
         </aside>
 
         <!-- Main Content -->
+         
         <main class="main-content">
             <!-- Add Repo Form -->
+             
             <div class="add-repo-form">
                 <h2>Add New Repository</h2>
                 <form id="addRepoForm">
@@ -241,11 +302,20 @@
                     </div>
                 </form>
             </div>
+            
 
             <!-- Repo List -->
             <div class="repo-grid" id="repoList">
                 <!-- Repositories will be added here dynamically -->
             </div>
+
+            <!-- Admin panel tooltip'leri -->
+           
+
+            <!-- Status bildirimleri -->
+
+            <!-- İşlem açıklamaları -->
+         
         </main>
     </div>
 

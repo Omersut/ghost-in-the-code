@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repository Details</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --primary: #0061FF;
+            --surface: #171717;
+            --surface-light: #262626;
+            --surface-lighter: #404040;
+            --text: #FAFAFA;
+            --text-secondary: #A3A3A3;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            height: 100vh;
+        }
+
+        /* File Explorer */
+        .file-explorer {
+            background: var(--surface-light);
+            padding: 1rem;
+            overflow-y: auto;
+            border-right: 1px solid var(--surface-lighter);
+        }
+
+        .file-tree {
+            font-size: 0.9rem;
+        }
+
+        .file-item, .folder-item {
+            padding: 0.5rem;
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .file-item:hover, .folder-item:hover {
+            background: var(--surface-lighter);
+        }
+
+        .folder-content {
+            margin-left: 1.5rem;
+            border-left: 1px solid var(--surface-lighter);
+            padding-left: 0.5rem;
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .commits-section {
+            margin-bottom: 2rem;
+        }
+
+        .commit-card {
+            background: var(--surface-light);
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .commit-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .commit-message {
+            font-weight: 500;
+        }
+
+        .commit-meta {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .commit-stats {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .tab {
+            padding: 0.5rem 1rem;
+            background: var(--surface-light);
+            border: none;
+            border-radius: 4px;
+            color: var(--text);
+            cursor: pointer;
+        }
+
+        .tab.active {
+            background: var(--primary);
+        }
+
+        /* File History */
+        .file-history {
+            display: none;
+        }
+
+        .file-history.active {
+            display: block;
+        }
+
+        /* Yeni stiller */
+        .branch-selector {
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .branch-btn {
+            padding: 0.5rem 1rem;
+            background: var(--surface-light);
+            border: none;
+            border-radius: 4px;
+            color: var(--text);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .branch-btn.active {
+            background: var(--primary);
+        }
+        
+        .file-content {
+            background: var(--surface-light);
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        
+        .diff-view {
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        
+        .diff-view .addition {
+            background: rgba(46, 160, 67, 0.15);
+            color: #2ea043;
+        }
+        
+        .diff-view .deletion {
+            background: rgba(248, 81, 73, 0.15);
+            color: #f85149;
+        }
+        
+        .commit-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        
+        .commit-files {
+            margin-top: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .file-change {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: var(--surface-light);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .file-change:hover {
+            background: var(--surface-lighter);
+        }
+
+        /* File Explorer stilleri */
+        .folder-container {
+            margin: 0.25rem 0;
+        }
+
+        .folder-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0.5rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .folder-item:hover {
+            background: var(--surface-lighter);
+        }
+
+        .folder-icon {
+            transition: transform 0.2s;
+            display: inline-block;
+            font-size: 0.75rem;
+        }
+
+        .folder-content {
+            display: none;
+            margin-left: 1.25rem;
+            padding-left: 0.75rem;
+            border-left: 1px solid var(--surface-lighter);
+        }
+
+        .folder-content.open {
+            display: block;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.375rem 0.5rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-item:hover {
+            background: var(--surface-lighter);
+        }
+
+        .file-item.selected {
+            background: var(--primary);
+            opacity: 0.8;
+        }
+
+        .item-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Branch seçici stilleri */
+        .branch-selector {
+            position: relative;
+        }
+
+        .branch-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background: var(--surface-light);
+            border: 1px solid var(--surface-lighter);
+            border-radius: 4px;
+            margin-top: 0.5rem;
+            display: none;
+            z-index: 10;
+        }
+
+        .branch-list.open {
+            display: block;
+        }
+
+        .branch-item {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+        }
+
+        .branch-item:hover {
+            background: var(--surface-lighter);
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- File Explorer -->
+        <aside class="file-explorer">
+            <div class="branch-selector">
+                <button class="branch-btn active" onclick="document.querySelector('.branch-list').classList.toggle('open')">
+                    <span>🌿</span>
+                    <span id="currentBranch">main</span>
+                    <span>▼</span>
+                </button>
+            </div>
+            <div class="file-tree" id="fileTree">
+                <!-- File tree will be populated here -->
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="tabs">
+                <button class="tab active" data-tab="files">Files</button>
+                <button class="tab" data-tab="commits">Commits</button>
+                <button class="tab" data-tab="branches">Branches</button>
+            </div>
+
+            <!-- Files Section -->
+            <div class="section active" id="filesSection">
+                <div class="file-content" id="fileContent">
+                    Select a file to view its content
+                </div>
+            </div>
+
+            <!-- Commits Section -->
+            <div class="section" id="commitsSection">
+                <!-- Commits will be populated here -->
+            </div>
+
+            <!-- Branches Section -->
+            <div class="section" id="branchesSection">
+                <!-- Branches will be populated here -->
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script>
+        // Get repo ID from URL
+        const repoId = window.location.pathname.split('/')[2];
+        let currentBranch = 'main';
+        let selectedFile = null;
+
+        // Load commits
+        async function loadCommits() {
+            try {
+                const response = await fetch(`/api/repo/${repoId}/commits`);
+                const commits = await response.json();
+                
+                const commitsSection = document.getElementById('commitsSection');
+                commitsSection.innerHTML = commits.map(commit => `
+                    <div class="commit-card">
+                        <div class="commit-header">
+                            <div class="commit-message">${commit.message}</div>
+                            <div class="commit-hash">${commit.hash.slice(0, 7)}</div>
+                        </div>
+                        <div class="commit-meta">
+                            ${commit.author} committed on ${new Date(commit.date).toLocaleString()}
+                        </div>
+                        <div class="commit-stats">
+                            <span>${commit.stats.files} files changed</span>
+                            <span>+${commit.stats.insertions}</span>
+                            <span>-${commit.stats.deletions}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading commits:', error);
+            }
+        }
+
+        // Load branches
+        async function loadBranches() {
+            try {
+                const response = await fetch(`/api/repo/${repoId}/branches`);
+                const branches = await response.json();
+                
+                // Branch listesini güncelle
+                const branchList = document.getElementById('branchList');
+                branchList.innerHTML = branches.map(branch => `
+                    <div class="branch-item" onclick="switchBranch('${branch.name}')">
+                        ${branch.name}
+                        ${branch.is_active ? '<span class="badge">Current</span>' : ''}
+                    </div>
+                `).join('');
+                
+                // Branch'ler sekmesini güncelle
+                const branchesSection = document.getElementById('branchesSection');
+                branchesSection.innerHTML = branches.map(branch => `
+                    <div class="branch-card">
+                        <div class="branch-header">
+                            <h3>${branch.name}</h3>
+                            ${branch.is_active ? '<span class="badge">Current</span>' : ''}
+                        </div>
+                        <div class="commit-info">
+                            <p>${branch.commit.message}</p>
+                            <small>
+                                ${branch.commit.author} committed on 
+                                ${new Date(branch.commit.date).toLocaleString()}
+                            </small>
+                        </div>
+                    </div>
+                `).join('');
+                
+                // Aktif branch'i güncelle
+                const activeBranch = branches.find(b => b.is_active);
+                if (activeBranch) {
+                    document.getElementById('currentBranch').textContent = activeBranch.name;
+                    currentBranch = activeBranch.name;
+                }
+            } catch (error) {
+                console.error('Error loading branches:', error);
+            }
+        }
+
+        // Folder toggle fonksiyonu
+        function toggleFolder(element) {
+            const content = element.nextElementSibling;
+            if (content) {
+                content.classList.toggle('open');
+                const icon = element.querySelector('.folder-icon');
+                if (icon) {
+                    icon.textContent = content.classList.contains('open') ? '📂' : '📁';
+                }
+            }
+        }
+
+        // File tree fonksiyonunu güncelle
+        async function loadFileTree() {
+            try {
+                const response = await fetch(`/api/repo/${repoId}/structure?branch=${currentBranch}`);
+                const structure = await response.json();
+                
+                function renderTree(items, level = 0) {
+                    return items.map(item => {
+                        if (item.type === 'folder') {
+                            return `
+                                <div class="folder-container">
+                                    <div class="folder-item" style="padding-left: ${level * 20}px" onclick="toggleFolder(this)">
+                                        <span class="folder-icon">📁</span>
+                                        <span class="item-name">${item.name}</span>
+                                    </div>
+                                    <div class="folder-content">
+                                        ${renderTree(item.children || [], level + 1)}
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            return `
+                                <div class="file-item" style="padding-left: ${level * 20}px" 
+                                     onclick="loadFileContent('${item.path}'); loadFileHistory('${item.path}');">
+                                    <span class="file-icon">📄</span>
+                                    <span class="item-name">${item.name}</span>
+                                </div>
+                            `;
+                        }
+                    }).join('');
+                }
+                
+                document.getElementById('fileTree').innerHTML = renderTree(structure);
+            } catch (error) {
+                console.error('Error loading file tree:', error);
+            }
+        }
+
+        // Load file content
+        async function loadFileContent(path, commit = null) {
+            try {
+                const response = await fetch(
+                    `/api/repo/${repoId}/file-content/${path}${commit ? `?commit=${commit}` : ''}`
+                );
+                const data = await response.json();
+                
+                document.getElementById('fileContent').innerHTML = `
+                    <pre><code class="language-${getLanguage(path)}">${
+                        data.content.replace(/&/g, '&amp;')
+                                  .replace(/</g, '&lt;')
+                                  .replace(/>/g, '&gt;')
+                    }</code></pre>
+                `;
+                
+                Prism.highlightAll();
+                selectedFile = path;
+            } catch (error) {
+                console.error('Error loading file content:', error);
+            }
+        }
+
+        // Load file history
+        async function loadFileHistory(path) {
+            try {
+                const response = await fetch(`/api/repo/${repoId}/file-history/${path}`);
+                const history = await response.json();
+                
+                const fileHistory = document.getElementById('fileHistory');
+                fileHistory.innerHTML = history.map(commit => `
+                    <div class="commit-card">
+                        <div class="commit-header">
+                            <div class="commit-message">${commit.message}</div>
+                            <div class="commit-hash">${commit.hash.slice(0, 7)}</div>
+                        </div>
+                        <div class="commit-meta">
+                            ${commit.author} committed on ${new Date(commit.date).toLocaleString()}
+                        </div>
+                        <button onclick="loadFileContent('${path}', '${commit.hash}')">
+                            View this version
+                        </button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading file history:', error);
+            }
+        }
+
+        // Dosya uzantısına göre dil belirleme fonksiyonu
+        function getLanguage(path) {
+            const ext = path.split('.').pop().toLowerCase();
+            const languageMap = {
+                'js': 'javascript',
+                'py': 'python',
+                'html': 'html',
+                'css': 'css',
+                'json': 'json',
+                'md': 'markdown',
+                'yaml': 'yaml',
+                'yml': 'yaml',
+                'sh': 'bash',
+                'bash': 'bash',
+                'ts': 'typescript',
+                'tsx': 'typescript',
+                'jsx': 'javascript',
+                'php': 'php',
+                'java': 'java',
+                'cpp': 'cpp',
+                'c': 'c',
+                'cs': 'csharp',
+                'go': 'go',
+                'rs': 'rust',
+                'rb': 'ruby',
+                'swift': 'swift',
+                'kt': 'kotlin'
+            };
+            return languageMap[ext] || 'plaintext';
+        }
+
+        // Branch değiştirme fonksiyonu
+        async function switchBranch(branchName) {
+            try {
+                currentBranch = branchName;
+                document.getElementById('currentBranch').textContent = branchName;
+                await loadFileTree();  // Dosya ağacını yeniden yükle
+                
+                // Branch butonlarını güncelle
+                document.querySelectorAll('.branch-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.textContent.includes(branchName));
+                });
+            } catch (error) {
+                console.error('Error switching branch:', error);
+            }
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                document.getElementById(`${tab.dataset.tab}Section`).classList.add('active');
+                
+                if (tab.dataset.tab === 'branches') {
+                    loadBranches();
+                }
+            });
+        });
+
+        // Initial load
+        loadCommits();
+        loadBranches();
+        loadFileTree();
+    </script>
+</body>
+</html> 
