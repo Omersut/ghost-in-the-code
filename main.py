@@ -7,6 +7,9 @@ from utils import initialize_system, RepoManager
 import asyncio
 from routes.admin import router, setup_services  # setup_services'i import et
 import git
+from pathlib import Path
+import markdown2  # pip install markdown2
+import os
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -214,14 +217,29 @@ async def get_file_content(repo_id: str, file_path: str, commit: Optional[str] =
         repo_path = repo_manager.base_path / repo_id
         repo = git.Repo(repo_path)
         
-        if commit:
-            # Belirli bir commit'teki içeriği al
-            file_content = repo.git.show(f"{commit}:{file_path}")
-        else:
-            # En son versiyondaki içeriği al
-            file_content = (repo_path / file_path).read_text()
+        try:
+            if commit:
+                # Belirli bir commit'teki içeriği al
+                content = repo.git.show(f"{commit}:{file_path}")
+            else:
+                # En son versiyondaki içeriği al
+                file_path_obj = repo_path / file_path
+                content = file_path_obj.read_text(errors='replace')
             
-        return {"content": file_content}
+            # Markdown dosyaları için HTML'e çevir
+            if file_path.lower().endswith('.md'):
+                content = markdown2.markdown(content, extras=['fenced-code-blocks', 'tables'])
+                return {"content": content, "is_markdown": True}
+            
+            return {"content": content, "is_markdown": False}
+            
+        except UnicodeDecodeError:
+            # Binary dosyalar için
+            return {
+                "content": "Binary file not shown",
+                "is_binary": True
+            }
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -264,5 +282,84 @@ async def get_repo_structure(repo_id: str, branch: Optional[str] = None):
             return sorted(tree, key=lambda x: (x["type"] == "file", x["name"]))
             
         return build_tree(repo_path)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/repo/{repo_id}/stats")
+async def get_repo_stats(repo_id: str):
+    try:
+        repo_path = repo_manager.base_path / repo_id
+        repo = git.Repo(repo_path)
+        
+        # Repo istatistikleri
+        stats = {
+            'total_commits': sum(1 for _ in repo.iter_commits()),
+            'total_branches': len(repo.heads),
+            'active_branch': repo.active_branch.name,
+            'contributors': [],
+            'file_types': {},
+            'last_activity': None,
+            'total_files': 0,
+            'total_size': 0
+        }
+        
+        # Contributor istatistikleri
+        for commit in repo.iter_commits():
+            contributor = {
+                'name': commit.author.name,
+                'email': commit.author.email,
+                'date': commit.authored_datetime.isoformat()
+            }
+            if contributor not in stats['contributors']:
+                stats['contributors'].append(contributor)
+            
+            if not stats['last_activity'] or commit.authored_datetime > stats['last_activity']:
+                stats['last_activity'] = commit.authored_datetime
+        
+        # Dosya türü istatistikleri
+        for root, _, files in os.walk(repo_path):
+            if '.git' in root:
+                continue
+            for file in files:
+                stats['total_files'] += 1
+                file_path = Path(root) / file
+                stats['total_size'] += file_path.stat().st_size
+                ext = file_path.suffix.lower()
+                stats['file_types'][ext] = stats['file_types'].get(ext, 0) + 1
+        
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/repo/{repo_id}/recent-activity")
+async def get_recent_activity(repo_id: str, limit: int = 10):
+    try:
+        repo_path = repo_manager.base_path / repo_id
+        repo = git.Repo(repo_path)
+        
+        activities = []
+        for commit in repo.iter_commits(max_count=limit):
+            # Her commit için değişen dosyaları al
+            changed_files = []
+            for item in commit.stats.files:
+                changed_files.append({
+                    'path': item,
+                    'changes': commit.stats.files[item]
+                })
+            
+            activities.append({
+                'type': 'commit',
+                'hash': commit.hexsha,
+                'short_hash': commit.hexsha[:7],
+                'message': commit.message,
+                'author': {
+                    'name': commit.author.name,
+                    'email': commit.author.email
+                },
+                'date': commit.authored_datetime.isoformat(),
+                'changed_files': changed_files
+            })
+        
+        return activities
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) 
