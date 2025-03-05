@@ -1,6 +1,6 @@
-documents:
+documents: null
 repositories:
-  - name: ghost-in-the-code
-    url: https://github.com/omersut/ghost-in-the-code.git
-    branch: main
-    description: AI-powered code exploration assistant
+  - branch: main
+    description: "AI Code Assistant Project"
+    name: "Ghost In The Code"
+    url: "https://github.com/yourusername/ghost-in-the-code"

@@ -1,7 +1,20 @@
-chroma_db/
-models/
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+
+# Project specific
+chroma_db/
+models/
+repos/
+
+# System
+.DS_Store
 
 # Model dosyaları
 *.safetensors
@@ -10,7 +23,3 @@ __pycache__/
 *.pth
 *.onnx
 *.model
-
-# Sistem dosyaları
-.DS_Store
-.env

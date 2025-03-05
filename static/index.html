@@ -596,6 +596,60 @@
         .admin-btn:hover {
             background: var(--surface-lighter);
         }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .modal-content {
+            background-color: var(--surface);
+            color: var(--text);
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid var(--surface-lighter);
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            padding: 8px;
+            border-bottom: 1px solid var(--surface-lighter);
+        }
+
+        .file-item label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .file-item input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .modal-footer {
+            margin-top: 20px;
+            text-align: right;
+        }
+
+        .confirm-selection {
+            padding: 8px 16px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
@@ -622,13 +676,13 @@
             </div>
             
             <div class="query-types">
-                <button class="query-type-btn active" data-type="all">
+                <button class="query-type-btn" data-type="all" onclick="setQueryType('all')">
                     🔍 All Repositories
                 </button>
-                <button class="query-type-btn" data-type="repo">
+                <button class="query-type-btn" data-type="repo" onclick="setQueryType('repo')">
                     📁 Current Repository
                 </button>
-                <button class="query-type-btn" data-type="files">
+                <button class="query-type-btn" data-type="files" data-action="select-files">
                     📄 Selected Files
                 </button>
             </div>
@@ -672,12 +726,27 @@
         </main>
     </div>
 
+    <!-- Mevcut HTML içinde uygun bir yere modal ekleyin -->
+    <div id="file-selector-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Select Files</h2>
+            <div class="file-list">
+                <!-- Dosyalar buraya dinamik olarak eklenecek -->
+            </div>
+            <div class="modal-footer">
+                <button class="confirm-selection">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let chatHistory = [];
         let currentProject = null;
         let currentQueryType = 'all';
         let selectedFiles = new Set();
         let currentRequest = null;
+        let currentRepo = '';
         
         // Sayfa yüklendiğinde repoları getir
         async function loadProjects() {
@@ -1072,6 +1141,11 @@
             });
             document.querySelector(`.query-type-btn[data-type="${type}"]`).classList.add('active');
             
+            // Files seçiliyse ve daha önce dosya seçilmemişse modalı aç
+            if (type === 'files' && selectedFiles.size === 0) {
+                //openFileSelector();
+            }
+            
             // Context bilgisini güncelle
             updateContextInfo();
         }
@@ -1363,6 +1437,106 @@
             selectedFiles = new Set();
             currentQueryType = 'all';
             updateContextInfo();
+        });
+
+        // Dosya seçim modalını aç
+        async function openFileSelector() {
+            const modal = document.getElementById('file-selector-modal');
+            const fileList = modal.querySelector('.file-list');
+            
+            try {
+                // Mevcut repo'yu al
+                currentRepo = document.getElementById('projectSelect').value || 'Ghost In The Code';
+                
+                if (!currentRepo) {
+                    alert('Please select a repository first');
+                    return;
+                }
+                
+                // Dosyaları al
+                const files = await fetch(`/available-files/${encodeURIComponent(currentRepo)}`).then(r => r.json());
+                
+                // Dosya listesini oluştur
+                fileList.innerHTML = files.map(file => `
+                    <div class="file-item">
+                        <label>
+                            <input type="checkbox" 
+                                   value="${file.path}"
+                                   ${selectedFiles.has(file.path) ? 'checked' : ''}>
+                            ${file.path}
+                        </label>
+                    </div>
+                `).join('');
+                
+                // Modalı göster
+                modal.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error loading files:', error);
+                alert('Error loading files. Please try again.');
+            }
+        }
+
+        // Modal kapatma işlemleri
+        document.querySelector('.close').onclick = function() {
+            document.getElementById('file-selector-modal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('file-selector-modal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Dosya seçimini kaydet
+        document.querySelector('.confirm-selection').onclick = async function() {
+            const modal = document.getElementById('file-selector-modal');
+            const selectedFiles = Array.from(
+                modal.querySelectorAll('input[type="checkbox"]:checked')
+            ).map(cb => cb.value);
+            
+            try {
+                const response = await fetch('/select-files', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        repo_id: currentRepo,
+                        files: selectedFiles
+                    })
+                });
+                
+                const result = await response.json();
+                console.log('Selection saved:', result);
+                
+                // Context mesajını güncelle
+                document.getElementById('context-message').textContent = result.message;
+                
+                // Modalı kapat
+                modal.style.display = 'none';
+                
+                // Seçili dosyaları göster
+                document.getElementById('selected-files').textContent = 
+                    selectedFiles.length ? `Selected files: ${selectedFiles.join(', ')}` : '';
+                
+            } catch (error) {
+                console.error('Error saving selection:', error);
+            }
+        }
+
+        // Query type butonlarına event listener ekle
+        document.querySelectorAll('.query-type-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const type = this.dataset.type;
+                setQueryType(type);
+                
+                // Eğer "files" tipiyse modal aç
+                if (type === 'files') {
+                    //openFileSelector();
+                }
+            });
         });
     </script>
 </body>

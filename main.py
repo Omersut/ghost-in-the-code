@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from pydantic import BaseModel
@@ -105,4 +105,34 @@ async def get_file_history(project_id: str, file_path: str):
 
 @app.get("/admin")
 async def admin_page():
-    return FileResponse("static/admin.html") 
+    return FileResponse("static/admin.html")
+
+@app.post("/select-files")
+async def select_files(request: Request):
+    data = await request.json()
+    repo_id = data.get("repo_id")
+    selected_files = data.get("files", [])
+    
+    try:
+        result = project_assistant.set_context(
+            context_type="files",
+            repo=repo_id,
+            files=selected_files
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/available-files/{repo_id}")
+async def get_available_files(repo_id: str):
+    try:
+        # Önce repo context'ini ayarla
+        project_assistant.set_context(
+            context_type="repo",
+            repo=repo_id
+        )
+        # Dosya listesini al
+        context_info = project_assistant.get_context_info()
+        return context_info["available_files"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 

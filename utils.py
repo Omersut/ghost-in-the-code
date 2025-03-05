@@ -13,48 +13,90 @@ from datetime import datetime
 from starlette.responses import FileResponse
 import asyncio
 import requests
+import errno
+import stat
+import shutil
 
 class RepoManager:
     def __init__(self, base_path: str = "repos"):
         self.base_path = Path(base_path)
         self.base_path.mkdir(exist_ok=True)
+        self._active_repos = {}  # Track active repo instances
 
     def clone_or_pull_repo(self, repo_name: str) -> Path:
         """Repoyu klonla veya güncelle"""
         try:
+            # Önce repo bağlantısını temizle
+            if repo_name in self._active_repos:
+                self._cleanup_repo(repo_name)
+
             # Repo bilgilerini al
-            with open("repos.yaml", "r") as f:
+            with open("repos.yaml", "r", encoding='utf-8') as f:
                 config = yaml.safe_load(f)
-                repo_info = next(r for r in config["repositories"] if r["name"] == repo_name)
+                repo_info = next((r for r in config["repositories"] if r["name"] == repo_name), None)
+                
+            if not repo_info:
+                raise ValueError(f"Repository {repo_name} not found in config")
 
             repo_path = self.base_path / repo_name
             
             if repo_path.exists():
                 print(f"Pulling {repo_name}...")
                 repo = git.Repo(repo_path)
+                # Değişiklikleri geri al
+                repo.git.reset('--hard')
+                repo.git.clean('-fd')
+                # Pull
                 repo.remotes.origin.pull()
             else:
                 print(f"Cloning {repo_name}...")
-                git.Repo.clone_from(repo_info["url"], repo_path)
-                
+                repo = git.Repo.clone_from(repo_info["url"], repo_path)
+
+            # Aktif repo listesine ekle
+            self._active_repos[repo_name] = repo
             return repo_path
 
         except Exception as e:
-            print(f"Error in clone_or_pull_repo: {str(e)}")
+            print(f"Error in clone_or_pull_repo: {e}")
+            # Hata durumunda temizlik
+            self._cleanup_repo(repo_name)
             raise
+
+    def _cleanup_repo(self, repo_name: str):
+        """Repo instance'ını temizle"""
+        try:
+            if repo_name in self._active_repos:
+                repo = self._active_repos[repo_name]
+                try:
+                    repo.git.gc()  # Git garbage collection
+                    repo.close()   # Git bağlantısını kapat
+                except:
+                    pass
+                del self._active_repos[repo_name]
+        except Exception as e:
+            print(f"Error cleaning up repo {repo_name}: {e}")
 
     def delete_repo(self, repo_name: str):
         """Repoyu sil"""
         try:
+            # Önce repo bağlantısını temizle
+            self._cleanup_repo(repo_name)
+            
             repo_path = self.base_path / repo_name
             
-            # Önce git repo klasörünü sil
             if repo_path.exists():
-                import shutil
-                shutil.rmtree(repo_path)
+                def handle_remove_readonly(func, path, exc):
+                    if func in (os.unlink, os.rmdir) and exc[1].errno == errno.EACCES:
+                        os.chmod(path, stat.S_IWRITE)
+                        func(path)
+                    else:
+                        raise exc
+
+                # Klasörü ve içindekileri sil
+                shutil.rmtree(repo_path, onerror=handle_remove_readonly)
             
-            # Sonra repos.yaml'dan kaldır
-            with open("repos.yaml", "r") as f:
+            # repos.yaml'dan kaldır
+            with open("repos.yaml", "r", encoding='utf-8') as f:
                 config = yaml.safe_load(f)
                 
             config["repositories"] = [
@@ -62,24 +104,33 @@ class RepoManager:
                 if r["name"] != repo_name
             ]
             
-            with open("repos.yaml", "w") as f:
+            with open("repos.yaml", "w", encoding='utf-8') as f:
                 yaml.dump(config, f)
                 
         except Exception as e:
-            print(f"Error in delete_repo: {str(e)}")
+            print(f"Error in delete_repo: {e}")
             raise
 
     def pull_repo(self, repo_name: str):
         """Repoyu güncelle"""
         try:
+            # Önce repo bağlantısını temizle
+            self._cleanup_repo(repo_name)
+            
             repo_path = self.base_path / repo_name
             if repo_path.exists():
                 repo = git.Repo(repo_path)
+                # Değişiklikleri geri al
+                repo.git.reset('--hard')
+                repo.git.clean('-fd')
+                # Pull
                 repo.remotes.origin.pull()
+                # Aktif repo listesine ekle
+                self._active_repos[repo_name] = repo
             else:
                 raise Exception(f"Repo {repo_name} does not exist locally")
         except Exception as e:
-            print(f"Error in pull_repo: {str(e)}")
+            print(f"Error in pull_repo: {e}")
             raise
 
 class ProjectAssistant:
@@ -96,6 +147,11 @@ class ProjectAssistant:
         self.max_retries = 5
         self.timeout = 60.0
         self._check_ollama_connection()
+        self.current_context = {
+            "type": "all",  # "all", "repo", "files"
+            "repo": None,
+            "files": []
+        }
 
     def _check_ollama_connection(self):
         """Check if Ollama service is running"""
@@ -108,19 +164,36 @@ class ProjectAssistant:
             print(f"Warning: Ollama connection failed - {str(e)}")
             print("Please make sure Ollama is running with: ollama serve")
 
+    def _normalize_collection_name(self, name: str) -> str:
+        """Repo ismini geçerli bir koleksiyon ismine dönüştür"""
+        # Boşlukları tire ile değiştir
+        normalized = name.replace(' ', '-')
+        # Özel karakterleri kaldır, sadece alfanumerik ve tire bırak
+        normalized = ''.join(c for c in normalized if c.isalnum() or c == '-')
+        # Birden fazla tireyi tekli tireye dönüştür
+        normalized = '-'.join(filter(None, normalized.split('-')))
+        # Başındaki ve sonundaki tireleri kaldır
+        normalized = normalized.strip('-')
+        # Küçük harfe çevir
+        normalized = normalized.lower()
+        return normalized
+
     def process_repo(self, repo_name: str, repo_path: Path):
         """Process repository content and create collection"""
         try:
+            # Normalize collection name
+            collection_name = self._normalize_collection_name(repo_name)
+            
             # Delete existing collection if exists
             try:
-                self.client.delete_collection(repo_name)
-                print(f"Deleted existing collection: {repo_name}")
+                self.client.delete_collection(collection_name)
+                print(f"Deleted existing collection: {collection_name}")
             except:
                 pass
 
             # Create new collection
             collection = self.client.create_collection(
-                name=repo_name,
+                name=collection_name,
                 embedding_function=self.embedding_fn
             )
             self.collections[repo_name] = collection
@@ -254,8 +327,11 @@ class ProjectAssistant:
 
     async def query(self, project_id: str, question: str):
         try:
+            # Normalize collection name
+            collection_name = self._normalize_collection_name(project_id)
+            
             collection = self.client.get_collection(
-                name=project_id,
+                name=collection_name,
                 embedding_function=self.embedding_fn
             )
 
@@ -283,7 +359,11 @@ Q: {question}"""
 
         except Exception as e:
             print(f"Error in query: {e}")
-            raise
+            return {
+                "answer": "Sorry, I couldn't find any relevant information in this repository.",
+                "context_type": "error",
+                "context": str(e)
+            }
 
     def get_project_structure(self, project_id: str):
         """Return project directory structure"""
@@ -492,8 +572,9 @@ Q: {question}"""
     async def query_repo(self, repo_id: str, question: str):
         """Query specific repository"""
         try:
+            collection_name = self._normalize_collection_name(repo_id)
             collection = self.client.get_collection(
-                name=repo_id,
+                name=collection_name,
                 embedding_function=self.embedding_fn
             )
             
@@ -517,8 +598,9 @@ Q: {question}"""
     async def query_files(self, repo_id: str, files: List[str], question: str):
         """Query specific files in a repository"""
         try:
+            collection_name = self._normalize_collection_name(repo_id)
             collection = self.client.get_collection(
-                name=repo_id,
+                name=collection_name,
                 embedding_function=self.embedding_fn
             )
             
@@ -639,6 +721,126 @@ Q: {question}"""
         except Exception as e:
             print(f"Error resetting collections: {e}")
 
+    def list_repos(self):
+        """Return list of repositories"""
+        try:
+            # repos.yaml dosyasından repo listesini al
+            with open("repos.yaml", "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+                return config.get("repositories", [])
+        except Exception as e:
+            print(f"Error listing repositories: {e}")
+            return []
+
+    def _load_existing_collections(self):
+        try:
+            collection_names = self.client.list_collections()
+            for collection in collection_names:
+                try:
+                    # Her koleksiyonu ayrı ayrı yükle
+                    collection_name = collection.name
+                    collection = self.client.get_collection(
+                        name=collection_name,
+                        embedding_function=self.embedding_fn
+                    )
+                    # Orijinal repo ismini key olarak kullan
+                    original_name = collection_name.replace('-', ' ').title()
+                    self.collections[original_name] = collection
+                    print(f"Loaded existing collection: {collection_name}")
+                except Exception as e:
+                    print(f"Error loading collection {collection_name}: {e}")
+        except Exception as e:
+            print(f"Error listing collections: {e}")
+
+    def set_context(self, context_type: str, repo: str = None, files: List[str] = None):
+        """UI context'ini güncelle"""
+        try:
+            if context_type not in ["all", "repo", "files"]:
+                raise ValueError("Invalid context type")
+                
+            self.current_context = {
+                "type": context_type,
+                "repo": repo,
+                "files": files or []
+            }
+            
+            return {
+                "status": "success",
+                "context": self.current_context,
+                "message": self._get_context_message()
+            }
+            
+        except Exception as e:
+            print(f"Error setting context: {e}")
+            return {
+                "status": "error",
+                "message": str(e)
+            }
+
+    def _get_context_message(self) -> str:
+        """Mevcut context için kullanıcı mesajı oluştur"""
+        if self.current_context["type"] == "all":
+            return "🔍 Searching across all repositories"
+        elif self.current_context["type"] == "repo":
+            return f"📁 Searching in {self.current_context['repo']}"
+        else:
+            files = self.current_context["files"]
+            file_count = len(files)
+            return f"📄 Searching in {file_count} selected file{'s' if file_count > 1 else ''}"
+
+    def get_context_info(self):
+        """Mevcut context bilgisini döndür"""
+        return {
+            "current": self.current_context,
+            "message": self._get_context_message(),
+            "available_repos": self.list_repos(),
+            "available_files": self._get_available_files() if self.current_context["repo"] else []
+        }
+
+    def _get_available_files(self) -> List[Dict]:
+        """Mevcut repo için kullanılabilir dosyaları getir"""
+        if not self.current_context["repo"]:
+            return []
+            
+        try:
+            structure = self.get_project_structure(self.current_context["repo"])
+            files = []
+            
+            def extract_files(node):
+                if node["type"] == "file":
+                    files.append({
+                        "path": node["path"],
+                        "name": node["name"],
+                        "selected": node["path"] in (self.current_context["files"] or [])
+                    })
+                elif node["type"] == "folder" and "children" in node:
+                    for child in node["children"]:
+                        extract_files(child)
+                        
+            extract_files(structure)
+            return files
+            
+        except Exception as e:
+            print(f"Error getting available files: {e}")
+            return []
+
+    async def query_with_context(self, question: str):
+        """Mevcut context'e göre sorguyu yönlendir"""
+        try:
+            context = self.current_context
+            
+            if context["type"] == "all":
+                return await self.query_all(question)
+            elif context["type"] == "repo" and context["repo"]:
+                return await self.query_repo(context["repo"], question)
+            elif context["type"] == "files" and context["files"]:
+                return await self.query_files(context["repo"], context["files"], question)
+            else:
+                return "Please select a search context (All Repositories, Current Repository, or Specific Files)"
+                
+        except Exception as e:
+            return f"Error: {str(e)}"
+
 class LLMAssistant:
     def __init__(self):
         self.client = chromadb.PersistentClient(path="./chroma_db")
@@ -682,16 +884,21 @@ class LLMAssistant:
 
     def _load_existing_collections(self):
         try:
-            # Yeni API'ye göre önce koleksiyon isimlerini al
             collection_names = self.client.list_collections()
-            for name in collection_names:
+            for collection in collection_names:
                 try:
                     # Her koleksiyonu ayrı ayrı yükle
-                    collection = self.client.get_collection(name=name)
-                    self.collections[name] = collection
-                    print(f"Loaded existing collection: {name}")
+                    collection_name = collection.name
+                    collection = self.client.get_collection(
+                        name=collection_name,
+                        embedding_function=self.embedding_fn
+                    )
+                    # Orijinal repo ismini key olarak kullan
+                    original_name = collection_name.replace('-', ' ').title()
+                    self.collections[original_name] = collection
+                    print(f"Loaded existing collection: {collection_name}")
                 except Exception as e:
-                    print(f"Error loading collection {name}: {e}")
+                    print(f"Error loading collection {collection_name}: {e}")
         except Exception as e:
             print(f"Error listing collections: {e}")
 
