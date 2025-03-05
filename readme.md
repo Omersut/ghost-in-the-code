@@ -29,7 +29,7 @@ An AI-powered code exploration and documentation assistant that helps developers
 ### Installation
 
 1. Clone the repository:
-git clone https://github.com/yourusername/ghost-in-the-code.git
+git clone https://github.com/Omersut/ghost-in-the-code.git
 cd ghost-in-the-code
 
 2. Install Python dependencies:
@@ -168,4 +168,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact
 
-Project Link: [https://github.com/yourusername/ghost-in-the-code](https://github.com/yourusername/ghost-in-the-code) # ghost-in-the-code
+Project Link: [https://github.com/Omersut/ghost-in-the-code](https://github.com/Omersut/ghost-in-the-code) # ghost-in-the-code
