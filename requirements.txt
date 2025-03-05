@@ -1,0 +1,13 @@
+fastapi>=0.68.0
+uvicorn>=0.15.0
+pyyaml>=6.0
+pydantic>=2.0.0
+gitpython>=3.1.0
+httpx>=0.24.0
+chromadb>=0.4.0
+sentence-transformers==2.2.2
+llama-index-core>=0.10.1
+llama-index-llms-ollama>=0.1.5
+llama-index-embeddings-huggingface>=0.1.5
+transformers>=4.30.2
+torch==2.0.1+cu118 

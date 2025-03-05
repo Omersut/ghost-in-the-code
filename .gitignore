@@ -1,0 +1,16 @@
+chroma_db/
+models/
+__pycache__/
+*.pyc
+
+# Model dosyaları
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.model
+
+# Sistem dosyaları
+.DS_Store
+.env

@@ -1,0 +1,6 @@
+documents:
+repositories:
+  - name: ghost-in-the-code
+    url: https://github.com/omersut/ghost-in-the-code.git
+    branch: main
+    description: AI-powered code exploration assistant

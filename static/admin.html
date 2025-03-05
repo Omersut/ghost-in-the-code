@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Code Assistant</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0061FF;
+            --primary-light: #3D8BFF;
+            --surface: #171717;
+            --surface-light: #262626;
+            --surface-lighter: #404040;
+            --text: #FAFAFA;
+            --text-secondary: #A3A3A3;
+            --danger: #DC2626;
+            --success: #16A34A;
+            --warning: #F59E0B;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--surface);
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--surface-light);
+            border-right: 1px solid var(--surface-lighter);
+            padding: 1.5rem;
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .back-btn {
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .back-btn:hover {
+            color: var(--text);
+            background: var(--surface-lighter);
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        /* Add Repo Form */
+        .add-repo-form {
+            background: var(--surface-light);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group label {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        input, textarea {
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--surface-lighter);
+            border-radius: 0.5rem;
+            color: var(--text);
+            font-size: 0.875rem;
+            width: 100%;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* Repo Cards */
+        .repo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .repo-card {
+            background: var(--surface-light);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .repo-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .repo-title {
+            font-size: 1.125rem;
+            font-weight: 500;
+        }
+
+        .repo-description {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .repo-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 1rem;
+            background: var(--surface);
+        }
+
+        .badge.success { color: var(--success); }
+        .badge.warning { color: var(--warning); }
+
+        .repo-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: auto;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-warning { background: var(--warning); color: black; }
+        .btn-danger { background: var(--danger); color: white; }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Admin Panel</h1>
+                <a href="/" class="back-btn" title="Back to Home">←</a>
+            </div>
+            <div class="sidebar-stats">
+                <div class="stat-item">
+                    <span>Total Repositories</span>
+                    <span id="totalRepos">0</span>
+                </div>
+                <div class="stat-item">
+                    <span>Processed Repositories</span>
+                    <span id="processedRepos">0</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Add Repo Form -->
+            <div class="add-repo-form">
+                <h2>Add New Repository</h2>
+                <form id="addRepoForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Repository Name</label>
+                            <input type="text" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Git URL</label>
+                            <input type="text" name="url" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Branch</label>
+                            <input type="text" name="branch" placeholder="main">
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea name="description"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <span>➕</span> Add Repository
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Repo List -->
+            <div class="repo-grid" id="repoList">
+                <!-- Repositories will be added here dynamically -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // List repositories
+        async function loadRepos() {
+            try {
+                const response = await fetch('/admin/repos/status');
+                const repos = await response.json();
+                
+                // Update statistics
+                document.getElementById('totalRepos').textContent = repos.length;
+                document.getElementById('processedRepos').textContent = 
+                    repos.filter(r => r.is_processed).length;
+                
+                const repoList = document.getElementById('repoList');
+                repoList.innerHTML = repos.map(repo => `
+                    <div class="repo-card">
+                        <div class="repo-header">
+                            <div>
+                                <h3 class="repo-title">${repo.name}</h3>
+                                <p class="repo-description">${repo.description || 'No description'}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="repo-meta">
+                            <span class="badge">URL: ${repo.url}</span>
+                            <span class="badge ${repo.is_cloned ? 'success' : 'warning'}">
+                                ${repo.is_cloned ? '✓ Cloned' : '⚠ Not Cloned'}
+                            </span>
+                            <span class="badge ${repo.is_processed ? 'success' : 'warning'}">
+                                ${repo.is_processed ? '✓ Processed' : '⚠ Not Processed'}
+                            </span>
+                            ${repo.last_updated ? `
+                                <span class="badge">
+                                    Last updated: ${new Date(repo.last_updated).toLocaleString()}
+                                </span>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="repo-actions">
+                            <button class="btn btn-primary" 
+                                onclick="repoAction('${repo.name}', 'clone')">
+                                ${repo.is_cloned ? '🔄 Pull' : '📥 Clone'}
+                            </button>
+                            <button class="btn btn-warning"
+                                onclick="repoAction('${repo.name}', 'process')"
+                                ${!repo.is_cloned ? 'disabled' : ''}>
+                                ${repo.is_processed ? '🔄 Reprocess' : '⚡ Process'}
+                            </button>
+                            <button class="btn btn-danger"
+                                onclick="confirmDelete('${repo.name}')">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error loading repositories');
+            }
+        }
+        
+        // Delete confirmation
+        function confirmDelete(repoName) {
+            if (confirm(`Are you sure you want to delete repository "${repoName}"?`)) {
+                repoAction(repoName, 'delete');
+            }
+        }
+        
+        // Repository actions
+        async function repoAction(repoId, action) {
+            try {
+                const response = await fetch('/admin/repos/action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ repo_id: repoId, action: action })
+                });
+                
+                const result = await response.json();
+                alert(result.message);
+                loadRepos(); // Refresh list
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error during operation');
+            }
+        }
+        
+        // Add new repository
+        document.getElementById('addRepoForm').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const repoData = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch('/admin/repos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(repoData)
+                });
+                
+                const result = await response.json();
+                alert(result.message);
+                loadRepos(); // Refresh list
+                e.target.reset(); // Clear form
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error adding repository');
+            }
+        };
+        
+        // Load repositories when page loads
+        document.addEventListener('DOMContentLoaded', loadRepos);
+    </script>
+</body>
+</html> 
