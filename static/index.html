@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Code Assistant</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.css" rel="stylesheet" />
     <link href="/static/css/common.css" rel="stylesheet" />
     <style>
         :root {
@@ -36,7 +37,7 @@
 
         .app {
             display: grid;
-            grid-template-columns: 300px 1fr;
+            grid-template-columns: minmax(300px, auto) 1fr;
             height: calc(100vh - 64px); /* Navigation bar yüksekliğini çıkar */
             overflow: hidden;
         }
@@ -47,8 +48,11 @@
             border-right: 1px solid var(--surface-lighter);
             display: flex;
             flex-direction: column;
-            height: 100%;
+            height: calc(100vh - 64px); /* Navigation bar yüksekliğini çıkar */
             overflow: hidden;
+            min-width: 300px;
+            width: fit-content;
+            max-width: 600px;
         }
 
         .sidebar-header {
@@ -96,25 +100,73 @@
             border-color: var(--primary);
         }
 
-        .file-explorer {
-            padding: 0.5rem;
-            font-size: 0.875rem;
-            overflow-y: auto;
+        /* File Explorer Improvements */
+        .file-explorer-container {
             flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        .file-explorer-header {
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--surface-lighter);
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .file-explorer {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.75rem;
+            font-size: 0.875rem;
+            /* Scrollbar styling */
+            scrollbar-width: thin;
+            scrollbar-color: var(--surface-lighter) var(--surface);
+            overflow-x: hidden;
+            width: 100%;
+        }
+
+        .file-explorer::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .file-explorer::-webkit-scrollbar-track {
+            background: var(--surface);
+        }
+
+        .file-explorer::-webkit-scrollbar-thumb {
+            background-color: var(--surface-lighter);
+            border-radius: 3px;
         }
 
         .folder-container {
-            margin: 0.25rem 0;
+            margin: 0.5rem 0;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            width: 100%;
         }
 
-        .folder-item {
+        .folder-container:hover {
+            background: var(--surface-light);
+        }
+
+        .folder-item, .file-item {
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.375rem 0.5rem;
+            padding: 0.5rem 0.75rem;
             border-radius: 0.375rem;
             cursor: pointer;
             transition: all 0.2s;
+            user-select: none;
+            width: fit-content;
+            min-width: 200px;
+            white-space: nowrap;
         }
 
         .folder-item:hover {
@@ -122,16 +174,27 @@
         }
 
         .folder-icon {
+            width: 16px;
+            height: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             transition: transform 0.2s;
-            display: inline-block;
-            font-size: 0.75rem;
+            margin-top: 2px; /* İkon ve metin hizalaması için */
+        }
+
+        .folder-container.open > .folder-item .folder-icon {
+            transform: rotate(90deg);
         }
 
         .folder-content {
             display: none;
             margin-left: 1.25rem;
             padding-left: 0.75rem;
-            border-left: 1px solid var(--surface-lighter);
+            border-left: 1px solid var(--surface-light);
+            margin-top: 0.25rem;
+            margin-bottom: 0.25rem;
+            width: auto;
         }
 
         .folder-content.open {
@@ -154,19 +217,40 @@
 
         .file-item.selected {
             background: var(--primary);
-            opacity: 0.8;
+            color: white;
         }
 
         .file-icon {
-            font-size: 1rem;
-            opacity: 0.8;
+            flex-shrink: 0;
+            width: 16px;
+            height: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2px; /* İkon ve metin hizalaması için */
         }
 
         .item-name {
             flex: 1;
+            min-width: 150px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            white-space: nowrap;
+            line-height: 1.3;
+            padding-right: 1rem;
+        }
+
+        /* Hover durumunda tam metni göster */
+        .folder-item:hover .item-name,
+        .file-item:hover .item-name {
+            white-space: normal;
+            overflow: visible;
+            position: relative;
+            z-index: 1;
+            background: var(--surface-lighter);
+            border-radius: 4px;
         }
 
         /* Main Content Styles */
@@ -175,6 +259,111 @@
             flex-direction: column;
             height: 100%;
             overflow: hidden;
+            position: relative;
+        }
+
+        /* File Preview Panel */
+        .file-preview {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 50%;
+            height: 100%;
+            background: var(--surface);
+            border-left: 1px solid var(--surface-lighter);
+            display: flex;
+            flex-direction: column;
+            z-index: 10;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .file-preview-header {
+            padding: 1rem;
+            background: var(--surface-light);
+            border-bottom: 1px solid var(--surface-lighter);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 48px;
+        }
+
+        .file-preview-title {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .file-preview-close {
+            cursor: pointer;
+            padding: 0.5rem;
+            color: var(--text-secondary);
+        }
+
+        .file-preview-content {
+            flex: 1;
+            overflow: auto;
+            padding: 1rem;
+            background: var(--surface);
+            position: relative;
+        }
+
+        .file-preview pre {
+            margin: 0;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            background: transparent;
+            tab-size: 4;
+            -moz-tab-size: 4;
+            padding: 0 1rem;
+        }
+
+        .file-preview code {
+            background: transparent;
+            padding: 0;
+            font-family: inherit;
+        }
+
+        /* Line Numbers */
+        .line-numbers .line-numbers-rows {
+            border-right: 1px solid var(--surface-lighter);
+            padding: 1rem 0;
+        }
+
+        .line-numbers .line-numbers-rows > span:before {
+            color: var(--text-secondary);
+            padding-right: 1rem;
+        }
+
+        /* Toolbar */
+        div.code-toolbar {
+            position: relative;
+        }
+
+        div.code-toolbar > .toolbar {
+            position: absolute;
+            top: 0.3em;
+            right: 0.2em;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        div.code-toolbar:hover > .toolbar {
+            opacity: 1;
+        }
+
+        div.code-toolbar > .toolbar > .toolbar-item > button {
+            background: var(--surface-lighter);
+            color: var(--text);
+            border: 1px solid var(--surface-light);
+            border-radius: 0.3em;
+            padding: 0.3em 0.8em;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-family: inherit;
+        }
+
+        div.code-toolbar > .toolbar > .toolbar-item > button:hover {
+            background: var(--surface-light);
         }
 
         .chat-container {
@@ -183,6 +372,12 @@
             flex-direction: column;
             overflow: hidden;
             height: 100%;
+            transition: width 0.3s ease;
+            width: 100%;
+        }
+
+        .chat-container.preview-open {
+            width: 50%;
         }
 
         .chat-messages {
@@ -772,11 +967,15 @@
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/toolbar/prism-toolbar.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/copy-to-clipboard/prism-copy-to-clipboard.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-jsx.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-tsx.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-css.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
 </head>
 <body>
     <nav class="top-nav">
@@ -800,11 +999,6 @@
                 <div class="sidebar-footer">
                     <!-- Admin ve Details butonları burada eklenecek -->
                 </div>
-                <a href="/admin" class="admin-link">
-                    <button class="admin-btn">
-                        ⚙️ Admin Panel
-                    </button>
-                </a>
             </div>
             
             <div class="query-types">
@@ -821,7 +1015,14 @@
 
             <div class="selected-context" id="selectedContext"></div>
             
-            <div class="file-explorer" id="projectTree"></div>
+            <div class="file-explorer-container">
+                <div class="file-explorer-header">
+                    Files
+                </div>
+                <div class="file-explorer" id="fileExplorer">
+                    <!-- File structure will be loaded here -->
+                </div>
+            </div>
 
         
         </aside>
@@ -859,12 +1060,12 @@
                     <div class="chat-input-wrapper">
                         <textarea 
                             class="chat-input" 
-                            id="question" 
+                            id="questionInput" 
                             placeholder="Ask a question about the code..."
                             onkeydown="handleKeyPress(event)"
                         ></textarea>
-                        <button class="send-button" onclick="askQuestion()">
-                            Send
+                        <button id="askButton" class="send-button">
+                            Ask
                         </button>
                     </div>
                 </div>
@@ -887,963 +1088,465 @@
     </div>
 
     <script>
-        let chatHistory = [];
-        let currentProject = null;
+        // Global state
+        let currentRepo = null;
         let currentQueryType = 'all';
         let selectedFiles = new Set();
-        let currentRequest = null;
-        let currentRepo = '';
-        
-        // Kullanıcı yönlendirme sistemi
-        const userGuide = {
-            showRepoHint: () => {
-                document.getElementById('repoHint').style.display = 'block';
-                document.getElementById('queryHint').style.display = 'none';
-            },
-            
-            showQueryHint: () => {
-                document.getElementById('repoHint').style.display = 'none';
-                document.getElementById('queryHint').style.display = 'block';
-            },
-            
-            hideAllHints: () => {
-                document.getElementById('repoHint').style.display = 'none';
-                document.getElementById('queryHint').style.display = 'none';
-            }
-        };
 
-        // Sayfa yüklendiğinde repoları getir
+        // Sidebar resize işlevi
+        let isResizing = false;
+        let lastDownX = 0;
+
+        function initSidebarResize() {
+            const sidebar = document.querySelector('.sidebar');
+            const resizer = document.createElement('div');
+            resizer.className = 'sidebar-resizer';
+            sidebar.appendChild(resizer);
+
+            resizer.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                lastDownX = e.clientX;
+                document.body.style.cursor = 'col-resize';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+
+                const delta = e.clientX - lastDownX;
+                lastDownX = e.clientX;
+
+                const newWidth = sidebar.offsetWidth + delta;
+                if (newWidth >= 300 && newWidth <= 500) {
+                    sidebar.style.width = `${newWidth}px`;
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                isResizing = false;
+                document.body.style.cursor = '';
+            });
+        }
+
+        // Context badge'i güncelle
+        function updateContextBadge() {
+            const badge = document.getElementById('selectedContext');
+            if (!badge) return;
+
+            let text = '';
+            if (currentQueryType === 'all') {
+                text = 'All Repositories';
+            } else if (currentQueryType === 'repo' && currentRepo) {
+                text = `Repository: ${currentRepo}`;
+            } else if (currentQueryType === 'files' && selectedFiles.size > 0) {
+                text = `Selected Files (${selectedFiles.size})`;
+            } else {
+                text = 'No Context Selected';
+            }
+
+            badge.textContent = text;
+            badge.title = text; // Tooltip ekle
+            
+            // Context badge'ini vurgula
+            badge.classList.toggle('has-context', 
+                (currentQueryType === 'repo' && currentRepo) || 
+                (currentQueryType === 'files' && selectedFiles.size > 0)
+            );
+        }
+
+        // Context değişikliklerini dinle
+        function handleContextChange() {
+            updateContextBadge();
+            // Input alanını güncelle
+            const placeholder = currentQueryType === 'files' 
+                ? `Ask about ${selectedFiles.size} selected files...`
+                : currentRepo 
+                    ? `Ask about ${currentRepo}...`
+                    : 'Select a repository or files first...';
+            
+            questionInput.placeholder = placeholder;
+            
+            // Soru sorma butonunu güncelle
+            askButton.disabled = !currentRepo || (currentQueryType === 'files' && selectedFiles.size === 0);
+        }
+
+        // Query type değiştiğinde
+        document.querySelectorAll('.query-type-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Aktif butonu güncelle
+                document.querySelectorAll('.query-type-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                currentQueryType = btn.dataset.type;
+                
+                // Files seçili değilse seçimleri temizle
+                if (currentQueryType !== 'files') {
+                    selectedFiles.clear();
+                    document.querySelectorAll('.file-item.selected').forEach(item => {
+                        item.classList.remove('selected');
+                    });
+                }
+
+                handleContextChange();
+            });
+        });
+
+        // Repo seçildiğinde
+        document.getElementById('projectSelect').addEventListener('change', (e) => {
+            currentRepo = e.target.value;
+            handleContextChange();
+        });
+
+        // Dosya seçildiğinde
+        function toggleFileSelection(element) {
+            if (currentQueryType === 'files') {
+                const filePath = element.dataset.path;
+                element.classList.toggle('selected');
+                if (element.classList.contains('selected')) {
+                    selectedFiles.add(filePath);
+                } else {
+                    selectedFiles.delete(filePath);
+                }
+                handleContextChange();
+            }
+            // Dosya önizleme
+            previewFile(element);
+        }
+
+        // Dosya önizleme state'i
+        let currentPreviewFile = null;
+
+        // Dosya önizleme fonksiyonu
+        async function previewFile(element) {
+            const filePath = element.dataset.path;
+            if (!currentRepo || !filePath) return;
+
+            try {
+                const response = await fetch(`/project/${currentRepo}/file/${filePath}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    return;
+                }
+
+                // Varsa mevcut preview'ı kaldır
+                const existingPreview = document.querySelector('.file-preview');
+                if (existingPreview) {
+                    existingPreview.remove();
+                }
+
+                // Chat container'ı daralt
+                document.querySelector('.chat-container').classList.add('preview-open');
+
+                const preview = document.createElement('div');
+                preview.className = 'file-preview';
+                preview.innerHTML = `
+                    <div class="file-preview-header">
+                        <div class="file-preview-title">${filePath}</div>
+                        <div class="file-preview-close" onclick="closePreview()">✕</div>
+                    </div>
+                    <div class="file-preview-content">
+                        <div class="code-toolbar">
+                            <pre class="line-numbers"><code class="language-${data.language}">${escapeHtml(data.content)}</code></pre>
+                        </div>
+                    </div>
+                `;
+
+                document.querySelector('.main-content').appendChild(preview);
+                
+                // Syntax highlighting
+                if (window.Prism) {
+                    Prism.highlightElement(preview.querySelector('code'));
+                }
+                
+                currentPreviewFile = filePath;
+                
+                // Seçili dosyayı vurgula
+                document.querySelectorAll('.file-item').forEach(item => {
+                    item.classList.toggle('active', item.dataset.path === filePath);
+                });
+            } catch (error) {
+                console.error('Error loading file:', error);
+            }
+        }
+
+        // Preview'ı kapat
+        function closePreview() {
+            const preview = document.querySelector('.file-preview');
+            if (preview) {
+                preview.remove();
+                document.querySelector('.chat-container').classList.remove('preview-open');
+                currentPreviewFile = null;
+
+                // Aktif dosya seçimini kaldır
+                document.querySelectorAll('.file-item.active').forEach(item => {
+                    item.classList.remove('active');
+                });
+            }
+        }
+
+        // Dosya uzantısına göre dil belirleme
+        function getLanguageFromPath(path) {
+            const ext = path.split('.').pop().toLowerCase();
+            const languageMap = {
+                'js': 'javascript',
+                'ts': 'typescript',
+                'py': 'python',
+                'html': 'html',
+                'css': 'css',
+                'json': 'json',
+                'md': 'markdown',
+                // Diğer diller eklenebilir
+            };
+            return languageMap[ext] || 'plaintext';
+        }
+
+        // HTML escape fonksiyonu
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Sayfa yüklendiğinde projeleri getir
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadProjects();
+            
+            // Query type butonlarını dinle
+            document.querySelectorAll('.query-type-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentQueryType = btn.dataset.type;
+                    handleContextChange();
+                });
+            });
+        });
+
+        // Projeleri yükle
         async function loadProjects() {
             try {
                 const response = await fetch('/projects');
-                if (!response.ok) {
-                    throw new Error('Projects could not be loaded');
-                }
                 const projects = await response.json();
-                console.log("Loaded projects:", projects);  // Debug için
                 
                 const select = document.getElementById('projectSelect');
-                select.innerHTML = '<option value="">Repo seçin...</option>';  // Reset
-                
-                if (projects && projects.length > 0) {
-                    projects.forEach(project => {
-                        const option = document.createElement('option');
-                        option.value = project;
-                        option.textContent = project;
-                        select.appendChild(option);
-                    });
-                } else {
-                    console.log("No projects found");
-                }
+                select.innerHTML = `
+                    <option value="">Select Repository...</option>
+                    ${projects.map(project => `
+                        <option value="${project.name}">${project.name}</option>
+                    `).join('')}
+                `;
+
+                // Proje seçildiğinde
+                select.addEventListener('change', async (e) => {
+                    const projectId = e.target.value;
+                    if (projectId) {
+                        currentRepo = projectId;
+                        await loadProjectStructure(projectId);
+                        handleContextChange();
+                        // Detay butonunu göster
+                        const detailsBtn = document.createElement('a');
+                        detailsBtn.href = `/repo/${projectId}/details`;
+                        detailsBtn.className = 'btn btn-primary';
+                        detailsBtn.innerHTML = '📊 View Details';
+                        
+                        // Varsa eski butonu kaldır
+                        const oldBtn = document.querySelector('.repo-details-btn');
+                        if (oldBtn) oldBtn.remove();
+                        
+                        // Yeni butonu ekle
+                        detailsBtn.classList.add('repo-details-btn');
+                        select.parentElement.appendChild(detailsBtn);
+                    }
+                });
             } catch (error) {
-                console.error("Error loading projects:", error);
-                alert("Error loading repositories");
+                console.error('Error loading projects:', error);
             }
         }
 
-        // Sayfa yüklendiğinde çalıştır
-        document.addEventListener('DOMContentLoaded', loadProjects);
+        async function loadProjectStructure(projectId) {
+            try {
+                const response = await fetch(`/project/${projectId}/structure`);
+                const structure = await response.json();
+                
+                const treeContainer = document.getElementById('fileExplorer');
+                if (!treeContainer) return;
 
-        function updateChatDisplay() {
-            const chatDiv = document.getElementById('chatMessages');
-            chatDiv.innerHTML = chatHistory.map(msg => `
-                <div class="message ${msg.type}-message">
-                    ${msg.message}
-                    <small class="message-time">
-                        ${new Date(msg.timestamp).toLocaleTimeString()}
-                    </small>
-                </div>
-            `).join('');
-            
-            chatDiv.scrollTop = chatDiv.scrollHeight;
+                function createFolderItem(item) {
+                    return `
+                        <div class="folder-container">
+                            <div class="folder-item" onclick="toggleFolder(this)">
+                                <span class="folder-icon">📁</span>
+                                <span class="item-name">${item.name}</span>
+                            </div>
+                            <div class="folder-content">
+                                ${item.children.map(child => 
+                                    child.type === 'folder' ? createFolderItem(child) : createFileItem(child)
+                                ).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                function createFileItem(item) {
+                    return `
+                        <div class="file-item" onclick="toggleFileSelection(this)" data-path="${item.path}">
+                            <span class="file-icon">📄</span>
+                            <span class="item-name">${item.name}</span>
+                        </div>
+                    `;
+                }
+
+                treeContainer.innerHTML = createFolderItem(structure);
+                
+            } catch (error) {
+                console.error('Error loading project structure:', error);
+            }
         }
 
+        // Klasör aç/kapat
+        function toggleFolder(element) {
+            const folderContainer = element.closest('.folder-container');
+            const folderContent = folderContainer.querySelector('.folder-content');
+            
+            // Toggle open class
+            folderContainer.classList.toggle('open');
+            folderContent.classList.toggle('open');
+            
+            // Icon değiştir
+            const icon = element.querySelector('.folder-icon');
+            icon.textContent = folderContainer.classList.contains('open') ? '📂' : '📁';
+        }
+
+        // Soru sorma işlemleri
+        let isProcessing = false;
+        const chatMessages = document.getElementById('chatMessages');
+        const questionInput = document.getElementById('questionInput');
+        const askButton = document.getElementById('askButton');
+
+        // Loading animasyonu için CSS sınıfı
+        const loadingDots = `
+            <div class="loading-dots">
+                <span>.</span><span>.</span><span>.</span>
+            </div>
+        `;
+
+        async function askQuestion() {
+            if (isProcessing || !questionInput.value.trim()) return;
+
+            // Context kontrolü
+            if (!currentRepo) {
+                appendMessage('error', 'Please select a repository first.');
+                return;
+            }
+
+            if (currentQueryType === 'files' && selectedFiles.size === 0) {
+                appendMessage('error', 'Please select at least one file for file-specific questions.');
+                return;
+            }
+
+            const question = questionInput.value.trim();
+            questionInput.value = '';
+            isProcessing = true;
+            askButton.disabled = true;
+
+            // Kullanıcı sorusunu ekle
+            appendMessage('user', question);
+
+            try {
+                // AI yanıtını ekle (loading ile)
+                appendMessage('assistant', loadingDots, true);
+                const lastMessage = chatMessages.lastElementChild;
+                const content = lastMessage.querySelector('.message-bubble');
+
+                // API isteği yap
+                const payload = {
+                    question,
+                    context: {
+                        type: currentQueryType,
+                        repo: currentRepo,
+                        files: Array.from(selectedFiles)
+                    }
+                };
+
+                console.log('Sending query with context:', payload);
+
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error('Network response was not ok');
+
+                // Stream yanıtı işle
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let answer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value);
+                    // Stream data formatını işle
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') break;
+                            try {
+                                answer += data;
+                                content.innerHTML = answer;  // Loading dots'u temizle ve yanıtı göster
+                            } catch (e) {
+                                console.error('Error parsing chunk:', e);
+                            }
+                        }
+                    }
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                appendMessage('error', 'An error occurred while processing your question.');
+            } finally {
+                isProcessing = false;
+                askButton.disabled = false;
+                questionInput.focus();
+            }
+        }
+
+        function appendMessage(type, content, isStreaming = false) {
+            const message = document.createElement('div');
+            message.className = `message ${type}-message`;
+            message.innerHTML = `
+                <div class="message-meta">
+                    <span>${type === 'user' ? 'You' : 'AI Assistant'}</span>
+                    <span>•</span>
+                    <span>Now</span>
+                </div>
+                <div class="message-bubble${isStreaming ? ' streaming' : ''}">${content}</div>
+            `;
+            chatMessages.appendChild(message);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Enter tuşu ile soru sorma
         function handleKeyPress(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
                 askQuestion();
             }
         }
+
+        // Soru input alanını dinle
+        questionInput.addEventListener('keydown', handleKeyPress);
         
-        function showTypingIndicator() {
-            const indicator = document.createElement('div');
-            indicator.className = 'typing-indicator';
-            indicator.innerHTML = `
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-            `;
-            document.querySelector('.chat-messages').appendChild(indicator);
-            indicator.scrollIntoView({ behavior: 'smooth' });
-        }
-        
-        function hideTypingIndicator() {
-            const indicator = document.querySelector('.typing-indicator');
-            if (indicator) {
-                indicator.remove();
-            }
-        }
-        
-        async function askQuestion() {
-            // Önceki isteği iptal et
-            if (currentRequest) {
-                currentRequest.abort();
-            }
-
-            const question = document.getElementById('question').value;
-            if (!question.trim()) return;
-
-            try {
-                // Yeni istek için AbortController
-                const controller = new AbortController();
-                currentRequest = controller;
-
-                // Kullanıcı mesajını ekle
-                const userMessageDiv = document.createElement('div');
-                userMessageDiv.className = 'message user-message';
-                userMessageDiv.innerHTML = `
-                    <div class="message-meta">
-                        <span>Siz</span>
-                        <span>${new Date().toLocaleTimeString()}</span>
-                    </div>
-                    <div class="message-bubble">${question}</div>
-                `;
-                document.querySelector('.chat-messages').appendChild(userMessageDiv);
-
-                // AI mesaj container'ını oluştur
-                const aiMessageDiv = document.createElement('div');
-                aiMessageDiv.className = 'message assistant-message';
-
-                // Context bilgisini hazırla
-                let contextInfo = '';
-                if (currentQueryType === 'repo') {
-                    contextInfo = `
-                        <div class="context-info">
-                            <span>📁 Repo:</span>
-                            <span class="repo">${document.getElementById('projectSelect').value}</span>
-                        </div>
-                    `;
-                } else if (currentQueryType === 'files') {
-                    contextInfo = `
-                        <div class="context-info">
-                            <span>📄 Dosyalar:</span>
-                            <span class="files">${Array.from(selectedFiles).join(', ')}</span>
-                        </div>
-                    `;
-                }
-
-                // Son 3 mesajı göster
-                const recentHistory = chatHistory.slice(-3);
-                const historyHtml = recentHistory.length ? `
-                   
-                ` : '';
-
-                aiMessageDiv.innerHTML = `
-                    <div class="message-meta">
-                        <span>AI Assistant</span>
-                        <span>${new Date().toLocaleTimeString()}</span>
-                    </div>
-                    <div class="message-bubble typing"></div>
-                    ${contextInfo}
-                    ${historyHtml}
-                `;
-                document.querySelector('.chat-messages').appendChild(aiMessageDiv);
-                const messageBubble = aiMessageDiv.querySelector('.message-bubble');
-
-                // Input'u temizle
-                document.getElementById('question').value = '';
-
-                // Query parametrelerini hazırla
-                const queryData = {
-                    question: question,
-                    query_type: currentQueryType
-                };
-
-                if (currentQueryType === 'repo') {
-                    queryData.project_id = document.getElementById('projectSelect').value;
-                } else if (currentQueryType === 'files') {
-                    queryData.project_id = document.getElementById('projectSelect').value;
-                    queryData.files = Array.from(selectedFiles);
-                }
-
-                let isFirstChunk = true;
-                let fullText = '';
-
-                const response = await fetch('/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(queryData),
-                    signal: controller.signal // Abort sinyali
-                });
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    
-                    const text = decoder.decode(value);
-                    const lines = text.split('\n');
-                    
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const chunk = line.slice(6);
-                            if (chunk.trim()) {
-                                if (isFirstChunk) {
-                                    messageBubble.classList.remove('typing');
-                                    isFirstChunk = false;
-                                }
-                                fullText += chunk;
-                                messageBubble.textContent = fullText;
-                            }
-                        }
-                    }
-                    
-                    // Otomatik scroll
-                    const chatMessages = document.querySelector('.chat-messages');
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
-
-                // Sohbet geçmişine ekle
-                chatHistory.push({
-                    role: 'user',
-                    message: question,
-                    timestamp: new Date().toISOString()
-                });
-
-                // Yanıt geldiğinde geçmişe ekle
-                chatHistory.push({
-                    role: 'assistant',
-                    message: fullText,
-                    timestamp: new Date().toISOString()
-                });
-
-                // Son 10 mesajı tut
-                chatHistory = chatHistory.slice(-10);
-
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    console.log('Request cancelled');
-                } else {
-                    console.error("Error:", error);
-                    messageBubble.classList.remove('typing');
-                    messageBubble.textContent = "An error occurred: " + error.message;
-                }
-            } finally {
-                currentRequest = null;
-            }
-        }
-        
-        async function loadProject(projectId) {
-            try {
-                console.log("Loading project:", projectId);
-                
-                // Proje yapısını yükle
-                await loadProjectStructure(projectId);
-                
-                // Metrikleri yükle
-                const metrics = await fetch(`/project/${projectId}/metrics`).then(r => r.json());
-                console.log("Project metrics:", metrics);
-                
-                // Sohbet geçmişini yükle
-                const history = await fetch(`/project/${projectId}/history`).then(r => r.json());
-                chatHistory = history;
-                
-                // Query type'ı repo olarak ayarla
-                setQueryType('repo');
-                
-                // Context bilgisini güncelle
-                updateContextInfo();
-                
-            } catch (error) {
-                console.error("Error loading project:", error);
-            }
-        }
-        
-        function renderProjectTree(node, level = 0) {
-            const container = document.getElementById('projectTree');
-            if (level === 0) container.innerHTML = '';
-            
-            if (node.type === 'folder') {
-                const folderDiv = document.createElement('div');
-                folderDiv.className = 'folder-container';
-                
-                const folderItem = document.createElement('div');
-                folderItem.className = 'folder-item';
-                folderItem.innerHTML = `
-                    <span class="folder-icon">▶</span>
-                    <span class="item-name">${node.name}</span>
-                `;
-                
-                const folderContent = document.createElement('div');
-                folderContent.className = 'folder-content';
-                
-                folderItem.onclick = (e) => {
-                    e.stopPropagation();
-                    folderItem.classList.toggle('open');
-                    folderContent.classList.toggle('open');
-                };
-                
-                folderDiv.appendChild(folderItem);
-                folderDiv.appendChild(folderContent);
-                container.appendChild(folderDiv);
-                
-                if (node.children) {
-                    node.children.forEach(child => {
-                        if (child.type === 'folder') {
-                            renderProjectTree(child, level + 1);
-                        } else {
-                            const fileItem = document.createElement('div');
-                            fileItem.className = 'file-item';
-                            fileItem.innerHTML = `
-                                <span class="file-icon">📄</span>
-                                <span class="item-name">${child.name}</span>
-                            `;
-                            fileItem.onclick = (e) => {
-                                e.stopPropagation();
-                                handleFileClick(child.path, 'file');
-                            };
-                            folderContent.appendChild(fileItem);
-                        }
-                    });
-                }
-            }
-        }
-        
-        function handleFileClick(path, type) {
-            if (type === 'file') {
-                if (currentQueryType === 'files') {
-                    // Dosyayı seçili dosyalara ekle
-                    selectedFiles.add(path);
-                    updateContextInfo();
-                    
-                    // Görsel geri bildirim
-                    const fileItem = event.currentTarget;
-                    fileItem.style.background = 'var(--primary)';
-                    setTimeout(() => {
-                        fileItem.style.background = '';
-                    }, 200);
-                } else {
-                    // Normal dosya önizleme
-                    showFileContent(path);
-                }
-            }
-        }
-
-        async function showFileContent(filePath) {
-            try {
-                // Chat container'ı gizle
-                document.querySelector('.chat-container').classList.add('hidden');
-                
-                // Preview container'ı göster ve içeriği yükle
-                const mainContent = document.querySelector('.main-content');
-                
-                // Eğer preview container yoksa oluştur
-                if (!document.querySelector('.preview-container')) {
-                    const previewContainer = document.createElement('div');
-                    previewContainer.className = 'preview-container';
-                    previewContainer.innerHTML = `
-                        <div class="preview-header">
-                            <h3 id="previewFileName"></h3>
-                            <button class="close-preview" onclick="closePreview()">✕</button>
-                        </div>
-                        <div class="preview-content">
-                            <pre class="line-numbers"><code id="codeContent"></code></pre>
-                        </div>
-                    `;
-                    mainContent.appendChild(previewContainer);
-                }
-                
-                const previewContainer = document.querySelector('.preview-container');
-                previewContainer.classList.add('active');
-                
-                // Dosya içeriğini yükle
-                const response = await fetch(`/project/${currentProject}/file/${filePath}`);
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                document.getElementById('previewFileName').textContent = filePath.split('/').pop();
-                const content = document.getElementById('codeContent');
-                
-                // Dil sınıfını ayarla
-                const language = data.language || 'plaintext';
-                content.className = `language-${language}`;
-                content.textContent = data.content;
-                
-                // Prism.js'i yeniden başlat
-                if (Prism) {
-                    Prism.highlightElement(content);
-                }
-                
-            } catch (error) {
-                console.error("Error loading file:", error);
-                // Sadece gerçek hataları göster
-                if (error.message !== "data.error is undefined") {
-                    alert("Dosya yüklenirken bir hata oluştu: " + error.message);
-                }
-            }
-        }
-        
-        function closePreview() {
-            // Preview container'ı gizle
-            document.querySelector('.preview-container').classList.remove('active');
-            
-            // Chat container'ı göster
-            document.querySelector('.chat-container').classList.remove('hidden');
-        }
-
-        function setQueryType(type) {
-            currentQueryType = type;
-            
-            // Butonları güncelle
-            document.querySelectorAll('.query-type-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`.query-type-btn[data-type="${type}"]`).classList.add('active');
-            
-            // Files seçiliyse ve daha önce dosya seçilmemişse modalı aç
-            if (type === 'files' && selectedFiles.size === 0) {
-                //openFileSelector();
-            }
-            
-            // Context bilgisini güncelle
-            updateContextInfo();
-        }
-
-        function updateContextInfo() {
-            const contextDiv = document.getElementById('selectedContext');
-            
-            // Context başlığını belirle
-            let contextTitle = '';
-            if (currentQueryType === 'all') {
-                contextTitle = 'All Repositories';
-            } else if (currentQueryType === 'repo') {
-                contextTitle = 'Selected Repository';
-            } else if (currentQueryType === 'files') {
-                contextTitle = 'Selected Files';
-            }
-
-            // HTML içeriğini oluştur
-            let html = `
-                <div class="context-title">${contextTitle}</div>
-                <div class="selected-items">
-            `;
-
-            if (currentQueryType === 'repo') {
-                const projectName = document.getElementById('projectSelect').value;
-                if (projectName) {
-                    html += `
-                        <div class="selected-item">
-                            <span class="item-icon">📁</span>
-                            <span class="item-name">${projectName}</span>
-                        </div>
-                    `;
-                } else {
-                    html += `<div class="no-selection">No repository selected</div>`;
-                }
-            } else if (currentQueryType === 'files' && selectedFiles.size > 0) {
-                selectedFiles.forEach(file => {
-                    const fileName = file.split('/').pop();
-                    const icon = getFileIcon(fileName);
-                    html += `
-                        <div class="selected-item">
-                            <span class="item-icon">${icon}</span>
-                            <span class="item-name">${fileName}</span>
-                            <button class="remove-item" onclick="removeFile('${file}')">×</button>
-                        </div>
-                    `;
-                });
-            } else if (currentQueryType === 'files') {
-                html += `<div class="no-selection">No files selected</div>`;
-            } else {
-                html += `<div class="no-selection">Searching across all repositories</div>`;
-            }
-
-            html += `</div>`;
-            contextDiv.innerHTML = html;
-        }
-
-        function removeFile(filePath) {
-            selectedFiles.delete(filePath);
-            updateContextInfo();
-        }
-
-        function addSelectedFile(filePath) {
-            if (currentQueryType === 'files') {
-                selectedFiles.add(filePath);
-                updateContextInfo();
-            }
-        }
-
-        // Dosya tipine göre ikon seçimi
-        function getFileIcon(filename) {
-            const ext = filename.split('.').pop().toLowerCase();
-            const icons = {
-                'js': '📜',
-                'ts': '📜',
-                'py': '🐍',
-                'html': '🌐',
-                'css': '🎨',
-                'json': '📋',
-                'md': '📝',
-                'yml': '⚙️',
-                'yaml': '⚙️',
-                'txt': '📄',
-                'gitignore': '🔒',
-                'env': '🔑'
-            };
-            return icons[ext] || '📄';
-        }
-
-        // Dosya yolunu parçalara ayırıp klasör yapısını oluştur
-        function buildTreeFromPaths(files) {
-            const root = { name: '', type: 'folder', children: [] };
-            
-            files.forEach(file => {
-                const parts = file.path.split('/');
-                let current = root;
-                
-                parts.forEach((part, i) => {
-                    if (i === parts.length - 1) {
-                        // Dosya
-                        current.children.push({
-                            name: part,
-                            type: 'file',
-                            path: file.path
-                        });
-                    } else {
-                        // Klasör
-                        let folder = current.children.find(c => c.name === part && c.type === 'folder');
-                        if (!folder) {
-                            folder = {
-                                name: part,
-                                type: 'folder',
-                                children: []
-                            };
-                            current.children.push(folder);
-                        }
-                        current = folder;
-                    }
-                });
-            });
-            
-            return root;
-        }
-
-        // Aktif bağlamı göster
-        function updateActiveContext() {
-            const contextDiv = document.querySelector('.active-context') || document.createElement('div');
-            contextDiv.className = 'active-context';
-            
-            let contextText = '🔍 All Repositories';
-            if (currentQueryType === 'repo') {
-                contextText = `📁 Repository: ${document.getElementById('projectSelect').value}`;
-            } else if (currentQueryType === 'files') {
-                contextText = `📄 Selected Files: ${Array.from(selectedFiles).length}`;
-            }
-            
-            contextDiv.textContent = contextText;
-            document.body.appendChild(contextDiv);
-        }
-
-        // File explorer için gerekli fonksiyonlar
-        async function loadProjectStructure(projectId) {
-            try {
-                const response = await fetch(`/project/${projectId}/structure`);
-                const structure = await response.json();
-                
-                if (structure.error) {
-                    console.error("Error:", structure.error);
-                    return;
-                }
-                
-                const fileExplorer = document.getElementById('projectTree');
-                fileExplorer.innerHTML = ''; // Mevcut içeriği temizle
-                
-                // Root klasörü oluştur
-                const rootFolder = createFolderElement(structure.name);
-                fileExplorer.appendChild(rootFolder);
-                
-                // Alt öğeleri ekle
-                if (structure.children) {
-                    const content = createFolderContent();
-                    structure.children.forEach(child => {
-                        const element = renderTreeItem(child);
-                        content.appendChild(element);
-                    });
-                    rootFolder.appendChild(content);
-                }
-            } catch (error) {
-                console.error("Error loading project structure:", error);
-            }
-        }
-
-        function renderTreeItem(item) {
-            if (item.type === 'folder') {
-                const folderElement = createFolderElement(item.name);
-                if (item.children) {
-                    const content = createFolderContent();
-                    item.children.forEach(child => {
-                        const element = renderTreeItem(child);
-                        content.appendChild(element);
-                    });
-                    folderElement.appendChild(content);
-                }
-                return folderElement;
-            } else {
-                return createFileElement(item);
-            }
-        }
-
-        function createFolderElement(name) {
-            const folder = document.createElement('div');
-            folder.className = 'folder-container';
-            
-            const header = document.createElement('div');
-            header.className = 'folder-item';
-            header.innerHTML = `
-                <span class="folder-icon">▶</span>
-                <span class="item-name">${name}</span>
-            `;
-            
-            header.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const content = folder.querySelector('.folder-content');
-                const icon = header.querySelector('.folder-icon');
-                
-                content.classList.toggle('open');
-                if (content.classList.contains('open')) {
-                    icon.style.transform = 'rotate(90deg)';
-                } else {
-                    icon.style.transform = 'rotate(0deg)';
-                }
-            });
-            
-            folder.appendChild(header);
-            return folder;
-        }
-
-        function createFolderContent() {
-            const content = document.createElement('div');
-            content.className = 'folder-content';
-            return content;
-        }
-
-        function createFileElement(item) {
-            const file = document.createElement('div');
-            file.className = 'file-item';
-            
-            const icon = getFileIcon(item.name);
-            file.innerHTML = `
-                <span class="file-icon">${icon}</span>
-                <span class="item-name">${item.name}</span>
-            `;
-            
-            file.addEventListener('click', (e) => {
-                e.stopPropagation();
-                if (currentQueryType === 'files') {
-                    // Dosya seçim modu
-                    file.classList.toggle('selected');
-                    if (file.classList.contains('selected')) {
-                        selectedFiles.add(item.path);
-                    } else {
-                        selectedFiles.delete(item.path);
-                    }
-                    updateContextInfo();
-                } else {
-                    // Dosya önizleme modu
-                    showFileContent(item.path);
-                }
-            });
-            
-            return file;
-        }
-
-        // Repo seçildiğinde
-        document.getElementById('projectSelect').addEventListener('change', async (e) => {
-            const projectId = e.target.value;
-            if (projectId) {
-                currentProject = projectId;
-                await loadProject(projectId);
-                
-                // Admin ve Details butonlarını ekle/güncelle
-                const adminContainer = document.querySelector('.sidebar-footer') || document.createElement('div');
-                adminContainer.className = 'sidebar-footer';
-                
-                // Önce mevcut butonları temizle
-                adminContainer.innerHTML = '';
-                
-                // Details butonu
-                const detailsBtn = document.createElement('button');
-                detailsBtn.className = 'admin-btn';
-                detailsBtn.innerHTML = '📊 Repository Details';
-                detailsBtn.onclick = () => window.location.href = `/repo/${encodeURIComponent(projectId)}/details`;
-                
-                // Admin butonu
-              
-                
-                // Butonları container'a ekle
-                adminContainer.appendChild(detailsBtn);
-                
-                // Container'ı sidebar'a ekle (eğer yoksa)
-                const sidebar = document.querySelector('.sidebar');
-                if (!document.querySelector('.sidebar-footer')) {
-                    sidebar.appendChild(adminContainer);
-                }
-            }
-        });
-
-        // Sayfa yüklendiğinde repoları listele
-        async function loadRepoList() {
-            try {
-                const response = await fetch('/repos/list');
-                const repos = await response.json();
-                
-                const select = document.getElementById('projectSelect');
-                select.innerHTML = '<option value="">Repo seçin...</option>';
-                
-                repos.forEach(repo => {
-                    const option = document.createElement('option');
-                    option.value = repo.name;
-                    option.textContent = repo.name;
-                    select.appendChild(option);
-                });
-                
-            } catch (error) {
-                console.error("Error loading repos:", error);
-            }
-        }
-
-        // Sayfa yüklendiğinde repoları listele
-        document.addEventListener('DOMContentLoaded', () => {
-            loadRepoList();
-            
-            // Diğer başlangıç işlemleri...
-            selectedFiles = new Set();
-            currentQueryType = 'all';
-            updateContextInfo();
-        });
-
-        // Dosya seçim modalını aç
-        async function openFileSelector() {
-            const modal = document.getElementById('file-selector-modal');
-            const fileList = modal.querySelector('.file-list');
-            
-            try {
-                // Mevcut repo'yu al
-                currentRepo = document.getElementById('projectSelect').value || 'Ghost In The Code';
-                
-                if (!currentRepo) {
-                    alert('Please select a repository first');
-                    return;
-                }
-                
-                // Dosyaları al
-                const files = await fetch(`/available-files/${encodeURIComponent(currentRepo)}`).then(r => r.json());
-                
-                // Dosya listesini oluştur
-                fileList.innerHTML = files.map(file => `
-                    <div class="file-item">
-                        <label>
-                            <input type="checkbox" 
-                                   value="${file.path}"
-                                   ${selectedFiles.has(file.path) ? 'checked' : ''}>
-                            ${file.path}
-                        </label>
-                    </div>
-                `).join('');
-                
-                // Modalı göster
-                modal.style.display = 'block';
-                
-            } catch (error) {
-                console.error('Error loading files:', error);
-                alert('Error loading files. Please try again.');
-            }
-        }
-
-        // Modal kapatma işlemleri
-        document.querySelector('.close').onclick = function() {
-            document.getElementById('file-selector-modal').style.display = 'none';
-        }
-
-        window.onclick = function(event) {
-            const modal = document.getElementById('file-selector-modal');
-            if (event.target == modal) {
-                modal.style.display = 'none';
-            }
-        }
-
-        // Dosya seçimini kaydet
-        document.querySelector('.confirm-selection').onclick = async function() {
-            const modal = document.getElementById('file-selector-modal');
-            const selectedFiles = Array.from(
-                modal.querySelectorAll('input[type="checkbox"]:checked')
-            ).map(cb => cb.value);
-            
-            try {
-                const response = await fetch('/select-files', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        repo_id: currentRepo,
-                        files: selectedFiles
-                    })
-                });
-                
-                const result = await response.json();
-                console.log('Selection saved:', result);
-                
-                // Context mesajını güncelle
-                document.getElementById('context-message').textContent = result.message;
-                
-                // Modalı kapat
-                modal.style.display = 'none';
-                
-                // Seçili dosyaları göster
-                document.getElementById('selected-files').textContent = 
-                    selectedFiles.length ? `Selected files: ${selectedFiles.join(', ')}` : '';
-                
-            } catch (error) {
-                console.error('Error saving selection:', error);
-            }
-        }
-
-        // Query type butonlarına event listener ekle
-        document.querySelectorAll('.query-type-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const type = this.dataset.type;
-                setQueryType(type);
-                
-                // Eğer "files" tipiyse modal aç
-                if (type === 'files') {
-                    //openFileSelector();
-                }
-            });
-        });
-
-        // Mesaj ekledikten sonra en alta scroll yapacak fonksiyon
-        function scrollToBottom() {
-            const chatMessages = document.querySelector('.chat-messages');
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        // Mesaj gönderme fonksiyonunu güncelle
-        async function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const question = input.value.trim();
-            
-            if (!question) return;
-            
-            // Kullanıcı mesajını ekle
-            appendMessage('user', question);
-            
-            // Input'u temizle
-            input.value = '';
-            
-            // En alta scroll yap
-            scrollToBottom();
-            
-            try {
-                // ... mevcut kod ...
-                
-                // Her yeni assistant mesajından sonra scroll
-                appendMessage('assistant', response);
-                scrollToBottom();
-                
-            } catch (error) {
-                console.error('Error:', error);
-                appendMessage('assistant', 'Sorry, an error occurred.');
-                scrollToBottom();
-            }
-        }
-
-        // Stream response fonksiyonunu da güncelle
-        async function streamResponse(query) {
-            try {
-                const response = await fetch('/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(query)
-                });
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let message = '';
-
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    
-                    const text = decoder.decode(value);
-                    const lines = text.split('\n');
-                    
-                    lines.forEach(line => {
-                        if (line.startsWith('data: ')) {
-                            const content = line.slice(6);
-                            message += content;
-                            updateLastMessage('assistant', message);
-                            // Her güncelleme sonrası scroll
-                            scrollToBottom();
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                appendMessage('assistant', 'Sorry, an error occurred while streaming the response.');
-                scrollToBottom();
-            }
-        }
-
-        // Chat container'a smooth scroll özelliği ekle
-        document.querySelector('.chat-messages').style.scrollBehavior = 'smooth';
-
-        // Repo seçildiğinde
-        document.getElementById('projectSelect').addEventListener('change', (e) => {
-            if (e.target.value) {
-                userGuide.showQueryHint();
-            } else {
-                userGuide.showRepoHint();
-            }
-        });
-
-        // İlk yüklemede
-        document.addEventListener('DOMContentLoaded', () => {
-            userGuide.showRepoHint();
-            
-            // Welcome message'ı göster
-            const chatMessages = document.querySelector('.chat-messages');
-            if (!chatMessages.hasChildNodes()) {
-                chatMessages.innerHTML = `
-                    <div class="welcome-message">
-                        <p>Select a repository and start asking questions about the code.</p>
-                    </div>
-                `;
-            }
-        });
-
-        // Context badge'i güncelle
-        function updateContextBadge() {
-            const badge = document.createElement('div');
-            badge.className = 'context-badge';
-            
-            if (currentQueryType === 'all') {
-                badge.innerHTML = '🔍 Searching all repositories';
-            } else if (currentQueryType === 'repo') {
-                badge.innerHTML = `📁 In: ${currentRepo || 'No repository selected'}`;
-            } else {
-                badge.innerHTML = `📄 Files: ${selectedFiles.size} selected`;
-            }
-            
-            document.getElementById('selectedContext').innerHTML = '';
-            document.getElementById('selectedContext').appendChild(badge);
-        }
+        // Soru sorma butonunu dinle
+        askButton.addEventListener('click', askQuestion);
     </script>
 </body>
 </html>

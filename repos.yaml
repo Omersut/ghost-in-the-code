@@ -1,6 +1,11 @@
 documents: null
 repositories:
-  - branch: main
-    description: "AI Code Assistant Project"
-    name: "Ghost In The Code"
-    url: "https://github.com/yourusername/ghost-in-the-code"
+- is_processed: true
+  local_path: D:/otfil
+  name: otfil
+- is_processed: true
+  local_path: D:/tv.b2c-git
+  name: B2C
+- is_processed: true
+  local_path: D:/PROJECTS/Virtualnfluence
+  name: Virtualnfluence

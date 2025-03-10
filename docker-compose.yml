@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - app_network
+
+  code_assistant:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./repos:/app/repos
+      - ./chroma_db:/app/chroma_db
+      - ./repos.yaml:/app/repos.yaml
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - ollama
+    networks:
+      - app_network
+
+volumes:
+  ollama_data:
+
+networks:
+  app_network:
+    driver: bridge 

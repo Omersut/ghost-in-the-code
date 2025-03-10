@@ -1,9 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import List, Optional
 import yaml
 from pathlib import Path
 import git
+from fastapi.responses import StreamingResponse
+import asyncio
+from collections import defaultdict
+import time
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -27,6 +31,8 @@ class RepoConfig(BaseModel):
 class RepoAction(BaseModel):
     repo_id: str
     action: str  # "clone", "pull", "process", "delete"
+
+progress_updates = defaultdict(list)
 
 @router.get("/repos")
 async def list_repos():
@@ -92,15 +98,17 @@ async def repo_action(action: RepoAction):
             return {"message": "Repository updated successfully"}
             
         elif action.action == "process":
-            # Process repository
-            repo_path = repo_manager.base_path / action.repo_id
-            project_assistant.process_repo(action.repo_id, repo_path)
+            # Progress callback'i ayarla
+            def progress_callback(message: str):
+                progress_updates[action.repo_id].append(message)
+            
+            project_assistant.progress_callback = progress_callback
+            await project_assistant.process_repo(action.repo_id)
             return {"message": "Repository processed successfully"}
             
         elif action.action == "delete":
-            # Delete repository
-            repo_manager.delete_repo(action.repo_id)
-            return {"message": "Repository deleted successfully"}
+            project_assistant.remove_repo(action.repo_id)
+            return {"message": "Repository removed successfully"}
             
         else:
             raise HTTPException(status_code=400, detail="Invalid action")
@@ -149,4 +157,45 @@ async def get_repo_status():
         return repos
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/admin/repos/{repo_id}/progress")
+async def repo_progress(repo_id: str):
+    async def event_generator():
+        try:
+            timeout = 300  # 5 dakika timeout
+            start_time = time.time()
+            while True:
+                # Timeout kontrolü
+                if time.time() - start_time > timeout:
+                    yield f"data: Timeout - process taking too long\n\n"
+                    break
+                    
+                if progress_updates[repo_id]:
+                    message = progress_updates[repo_id].pop(0)
+                    yield f"data: {message}\n\n"
+                elif not progress_updates[repo_id]:
+                    # Eğer 3 saniye boyunca güncelleme gelmezse bağlantıyı kapat
+                    try:
+                        await asyncio.sleep(3)
+                        if not progress_updates[repo_id]:
+                            break
+                    except asyncio.CancelledError:
+                        break
+                await asyncio.sleep(0.1)
+        except asyncio.CancelledError:
+            print("Progress stream cancelled")
+        finally:
+            # Temizlik
+            if repo_id in progress_updates:
+                del progress_updates[repo_id]
+            
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        }
+    ) 

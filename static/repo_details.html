@@ -1,0 +1,450 @@
+    <style>
+        /* File Tree Styles */
+        .file-tree {
+            margin: 1rem 0;
+            font-family: monospace;
+            overflow-y: auto;
+            flex: 1;
+            padding-right: 0.5rem;
+        }
+
+        .file-item {
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            margin: 0.5rem 0;
+            overflow: hidden;
+            background: var(--surface);
+            transition: all 0.3s ease;
+        }
+
+        .file-item.expanded {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .file-header {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            background: var(--surface-light);
+            cursor: pointer;
+            user-select: none;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .file-header:hover {
+            background: var(--surface-lighter);
+        }
+
+        .file-header .expand-icon {
+            margin-right: 0.5rem;
+            transition: transform 0.3s ease;
+        }
+
+        .file-item.expanded .expand-icon {
+            transform: rotate(90deg);
+        }
+
+        .file-icon {
+            margin-right: 0.5rem;
+            color: var(--text-secondary);
+        }
+
+        .file-path {
+            flex: 1;
+            font-size: 0.9rem;
+        }
+
+        .file-stats {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .stat-added {
+            color: var(--success);
+        }
+
+        .stat-removed {
+            color: var(--danger);
+        }
+
+        .file-content {
+            display: none;
+            padding: 1rem;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            overflow-x: auto;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .file-content.show {
+            display: block;
+        }
+
+        .diff-content {
+            font-family: monospace;
+            white-space: pre-wrap;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            tab-size: 4;
+            -moz-tab-size: 4;
+        }
+
+        .diff-line {
+            display: flex;
+            padding: 0 0.5rem;
+            border-radius: 2px;
+            margin: 1px 0;
+        }
+
+        .line-number {
+            color: var(--text-secondary);
+            padding-right: 1rem;
+            user-select: none;
+        }
+
+        .line-content {
+            flex: 1;
+        }
+
+        .line-added {
+            background: rgba(40, 167, 69, 0.1);
+        }
+
+        .line-removed {
+            background: rgba(220, 53, 69, 0.1);
+        }
+
+        /* Commit Modal Styles */
+        .commit-modal {
+            max-width: 90%;
+            width: 1200px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 1rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .modal-content {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            background: var(--background);
+        }
+
+        .commit-details {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            overflow: hidden;
+            flex: 1;
+            padding: 1rem;
+        }
+
+        .commit-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--surface-light);
+            border-radius: 4px;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        .commit-summary {
+            flex: 1;
+        }
+
+        .commit-meta {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* Commit Modal Improvements */
+        .commit-files {
+            @extend .custom-scroll-y;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .file-diff {
+            border: 1px solid var(--surface-lighter);
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background: var(--surface-light);
+        }
+
+        .file-diff-header {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            cursor: pointer;
+            user-select: none;
+            gap: 1rem;
+        }
+
+        .file-diff-header:hover {
+            background: var(--surface-lighter);
+        }
+
+        .file-diff-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .file-diff-toggle .icon {
+            transition: transform 0.2s;
+        }
+
+        .file-diff.expanded .file-diff-toggle .icon {
+            transform: rotate(90deg);
+        }
+
+        .file-diff-path {
+            flex: 1;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .file-diff-stats {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+        }
+
+        .file-diff-content {
+            @extend .custom-scroll;
+            display: none;
+            border-top: 1px solid var(--surface-lighter);
+        }
+
+        .file-diff.expanded .file-diff-content {
+            display: block;
+        }
+
+        .diff-block {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--surface-lighter);
+        }
+
+        .diff-block:last-child {
+            border-bottom: none;
+        }
+
+        .diff-block-header {
+            padding: 0.25rem 1rem;
+            background: var(--surface);
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .diff-lines {
+            font-family: monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            tab-size: 4;
+        }
+
+        .diff-line {
+            display: flex;
+            padding: 0.125rem 1rem;
+        }
+
+        .diff-line-number {
+            color: var(--text-secondary);
+            padding-right: 1rem;
+            min-width: 3rem;
+            text-align: right;
+            user-select: none;
+        }
+
+        .diff-line-content {
+            white-space: pre;
+            flex: 1;
+            overflow-x: auto;
+        }
+
+        .diff-line.added {
+            background: rgba(22, 163, 74, 0.1);
+        }
+
+        .diff-line.added .diff-line-content {
+            color: var(--success);
+        }
+
+        .diff-line.removed {
+            background: rgba(220, 38, 38, 0.1);
+        }
+
+        .diff-line.removed .diff-line-content {
+            color: var(--danger);
+        }
+    </style>
+
+    <!-- Commit Modal -->
+    <div id="commitModal" class="modal">
+        <div class="modal-content commit-modal">
+            <div class="modal-header">
+                <h2>Commit Details</h2>
+                <span class="close">&times;</span>
+            </div>
+            <div class="commit-details">
+                <div class="commit-header">
+                    <div class="commit-summary">
+                        <h3 id="commitMessage"></h3>
+                        <div class="commit-meta">
+                            <span id="commitAuthor"></span>
+                            <span id="commitDate"></span>
+                        </div>
+                    </div>
+                    <div class="commit-stats">
+                        <span id="totalFiles"></span> files changed
+                    </div>
+                </div>
+                <div class="commit-files" id="commitFiles">
+                    <!-- Dosyalar buraya dinamik olarak eklenecek -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function showCommitDetails(commitId) {
+            try {
+                const response = await fetch(`/repo/${repoName}/commit/${commitId}`);
+                const commit = await response.json();
+                
+                document.getElementById('commitMessage').textContent = commit.message;
+                document.getElementById('commitAuthor').textContent = commit.author.name;
+                document.getElementById('commitDate').textContent = new Date(commit.date).toLocaleString();
+                document.getElementById('totalFiles').textContent = commit.files.length;
+
+                const filesContainer = document.getElementById('commitFiles');
+                filesContainer.innerHTML = commit.files.map(file => {
+                    const stats = getFileStats(file.diff);
+                    return `
+                        <div class="file-diff">
+                            <div class="file-diff-header" onclick="toggleFileDiff(this)">
+                                <div class="file-diff-toggle">
+                                    <span class="icon">▶</span>
+                                    <span class="file-type-icon">${getFileIcon(file.path)}</span>
+                                </div>
+                                <div class="file-diff-path">${file.path}</div>
+                                <div class="file-diff-stats">
+                                    <span class="badge success">+${stats.additions}</span>
+                                    <span class="badge danger">-${stats.deletions}</span>
+                                </div>
+                            </div>
+                            <div class="file-diff-content">
+                                ${formatDiffContent(file.diff)}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                showModal('commitModal');
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error loading commit details');
+            }
+        }
+
+        function getFileIcon(path) {
+            const ext = path.split('.').pop().toLowerCase();
+            const icons = {
+                js: '📜',
+                ts: '📜',
+                py: '🐍',
+                html: '🌐',
+                css: '🎨',
+                json: '📋',
+                md: '📝',
+                default: '📄'
+            };
+            return icons[ext] || icons.default;
+        }
+
+        function getFileStats(diff) {
+            return {
+                additions: (diff.match(/^\+/gm) || []).length,
+                deletions: (diff.match(/^-/gm) || []).length
+            };
+        }
+
+        function formatDiffContent(diff) {
+            const lines = diff.split('\n');
+            let output = '';
+            let currentBlock = [];
+            let oldLineNum = 1;
+            let newLineNum = 1;
+
+            for (const line of lines) {
+                if (line.startsWith('@@')) {
+                    if (currentBlock.length) {
+                        output += `<div class="diff-block">${currentBlock.join('\n')}</div>`;
+                        currentBlock = [];
+                    }
+                    currentBlock.push(`<div class="diff-block-header">${line}</div>`);
+                    continue;
+                }
+
+                let lineClass = '';
+                let lineNum = '';
+
+                if (line.startsWith('+')) {
+                    lineClass = 'added';
+                    lineNum = `<span class="diff-line-number">+${newLineNum++}</span>`;
+                } else if (line.startsWith('-')) {
+                    lineClass = 'removed';
+                    lineNum = `<span class="diff-line-number">-${oldLineNum++}</span>`;
+                } else {
+                    lineNum = `<span class="diff-line-number">${oldLineNum++}</span>`;
+                    newLineNum++;
+                }
+
+                currentBlock.push(`
+                    <div class="diff-line ${lineClass}">
+                        ${lineNum}
+                        <span class="diff-line-content">${escapeHtml(line)}</span>
+                    </div>
+                `);
+            }
+
+            if (currentBlock.length) {
+                output += `<div class="diff-block">${currentBlock.join('\n')}</div>`;
+            }
+
+            return output;
+        }
+
+        function toggleFileDiff(header) {
+            const fileDiff = header.closest('.file-diff');
+            fileDiff.classList.toggle('expanded');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script> 

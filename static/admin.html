@@ -141,7 +141,7 @@
             font-weight: 500;
         }
 
-        .repo-description {
+        .repo-path {
             color: var(--text-secondary);
             font-size: 0.875rem;
         }
@@ -248,6 +248,61 @@
             font-size: 0.875rem;
             color: var(--text-secondary);
         }
+
+        .path-input {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .path-input input {
+            flex: 1;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .loading-content {
+            background: var(--surface-light);
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            max-width: 400px;
+        }
+
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--surface-lighter);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        .loading-text {
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+
+        .loading-subtext {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -284,7 +339,7 @@
             <!-- Add Repo Form -->
              
             <div class="add-repo-form">
-                <h2>Add New Repository</h2>
+                <h2>Add Local Repository</h2>
                 <form id="addRepoForm">
                     <div class="form-grid">
                         <div class="form-group">
@@ -292,19 +347,19 @@
                             <input type="text" name="name" required>
                         </div>
                         <div class="form-group">
-                            <label>Git URL</label>
-                            <input type="text" name="url" required>
+                            <label>Local Path</label>
+                            <div class="path-input">
+                                <input type="text" name="localPath" id="localPath" required 
+                                       placeholder="C:/Users/username/projects/myrepo">
+                                <button type="button" class="btn btn-secondary" onclick="openFolderDialog()">
+                                    ❔ Help
+                                </button>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Branch</label>
-                            <input type="text" name="branch" placeholder="main">
-                        </div>
-                        <div class="form-group">
-                            <label>Description</label>
-                            <textarea name="description"></textarea>
-                        </div>
+                    
                     </div>
                     <div class="form-actions">
+                        <br>
                         <button type="submit" class="btn btn-primary">
                             <span>➕</span> Add Repository
                         </button>
@@ -328,11 +383,21 @@
         </main>
     </div>
 
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Processing Repository</div>
+            <div class="loading-subtext">This may take a few minutes...</div>
+            <div id="loadingProgress" class="loading-subtext"></div>
+        </div>
+    </div>
+
     <script>
         // List repositories
         async function loadRepos() {
             try {
-                const response = await fetch('/admin/repos/status');
+                const response = await fetch('/repos/list');
                 const repos = await response.json();
                 
                 // Update statistics
@@ -345,34 +410,22 @@
                     <div class="repo-card">
                         <div class="repo-header">
                             <div>
-                                <h3 class="repo-title">${repo.name}</h3>
-                                <p class="repo-description">${repo.description || 'No description'}</p>
+                                <h3 class="repo-title">
+                                    <a href="/repo/${repo.name}/details" class="repo-title">${repo.name}</a>
+                                </h3>
+                                <p class="repo-path">${repo.local_path}</p>
                             </div>
                         </div>
                         
                         <div class="repo-meta">
-                            <span class="badge">URL: ${repo.url}</span>
-                            <span class="badge ${repo.is_cloned ? 'success' : 'warning'}">
-                                ${repo.is_cloned ? '✓ Cloned' : '⚠ Not Cloned'}
-                            </span>
                             <span class="badge ${repo.is_processed ? 'success' : 'warning'}">
                                 ${repo.is_processed ? '✓ Processed' : '⚠ Not Processed'}
                             </span>
-                            ${repo.last_updated ? `
-                                <span class="badge">
-                                    Last updated: ${new Date(repo.last_updated).toLocaleString()}
-                                </span>
-                            ` : ''}
                         </div>
                         
                         <div class="repo-actions">
-                            <button class="btn btn-primary" 
-                                onclick="repoAction('${repo.name}', 'clone')">
-                                ${repo.is_cloned ? '🔄 Pull' : '📥 Clone'}
-                            </button>
                             <button class="btn btn-warning"
-                                onclick="repoAction('${repo.name}', 'process')"
-                                ${!repo.is_cloned ? 'disabled' : ''}>
+                                onclick="repoAction('${repo.name}', 'process')">
                                 ${repo.is_processed ? '🔄 Reprocess' : '⚡ Process'}
                             </button>
                             <button class="btn btn-danger"
@@ -399,6 +452,27 @@
         // Repository actions
         async function repoAction(repoId, action) {
             try {
+                showLoading(action === 'process' ? 'Processing Repository' : 'Deleting Repository');
+                
+                let eventSource;
+                // Progress listener'ı başlat
+                if (action === 'process') {
+                    eventSource = new EventSource(`/admin/repos/${repoId}/progress`);
+                    eventSource.onmessage = (event) => {
+                        updateProgress(event.data);
+                        // Timeout veya hata mesajlarını kontrol et
+                        if (event.data.includes('Timeout') || event.data.includes('Error')) {
+                            eventSource.close();
+                            hideLoading();
+                            alert(event.data);
+                        }
+                    };
+                    eventSource.onerror = () => {
+                        console.log('SSE Error - closing connection');
+                        eventSource.close();
+                    };
+                }
+                
                 const response = await fetch('/admin/repos/action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -406,42 +480,81 @@
                 });
                 
                 const result = await response.json();
+                if (eventSource) {
+                    eventSource.close();
+                }
+                hideLoading();
                 alert(result.message);
                 loadRepos(); // Refresh list
                 
             } catch (error) {
                 console.error('Error:', error);
+                if (eventSource) {
+                    eventSource.close();
+                }
+                hideLoading();
                 alert('Error during operation');
             }
         }
         
-        // Add new repository
-        document.getElementById('addRepoForm').onsubmit = async (e) => {
+        // Form submit
+        document.getElementById('addRepoForm').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
             const formData = new FormData(e.target);
-            const repoData = Object.fromEntries(formData.entries());
             
             try {
-                const response = await fetch('/admin/repos', {
+                const response = await fetch('/admin/repos/add-local', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(repoData)
+                    body: JSON.stringify({
+                        name: formData.get('name'),
+                        localPath: formData.get('localPath')
+                    })
                 });
                 
                 const result = await response.json();
-                alert(result.message);
-                loadRepos(); // Refresh list
-                e.target.reset(); // Clear form
-                
+                if (result.success) {
+                    alert('Repository added successfully');
+                    loadRepos();  // Listeyi yenile
+                    e.target.reset();  // Formu temizle
+                } else {
+                    alert(result.message || 'Error adding repository');
+                }
             } catch (error) {
                 console.error('Error:', error);
                 alert('Error adding repository');
             }
-        };
+        });
         
         // Load repositories when page loads
         document.addEventListener('DOMContentLoaded', loadRepos);
+
+        // Browse button tooltip
+        function openFolderDialog() {
+            alert(`To add a repository:
+1. Copy the full path of your local repository folder
+2. Paste it into the "Local Path" field
+    
+Example paths:
+Windows: C:/Users/username/projects/myrepo
+Linux: /home/username/projects/myrepo
+Mac: /Users/username/projects/myrepo`);
+        }
+
+        function showLoading(message = 'Processing Repository') {
+            const overlay = document.getElementById('loadingOverlay');
+            const text = overlay.querySelector('.loading-text');
+            text.textContent = message;
+            overlay.style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        function updateProgress(message) {
+            document.getElementById('loadingProgress').textContent = message;
+        }
     </script>
 </body>
 </html> 
