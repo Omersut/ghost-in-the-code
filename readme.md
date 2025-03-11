@@ -2,6 +2,17 @@
 
 A smart AI assistant that helps you explore and understand code through natural conversations.
 
+## 📸 Screenshots
+
+### Home Page - Chat with Your Code
+![Home Page](images/home.png)
+
+### Repository Details and History
+![Details Page](images/details.png)
+
+### Admin Panel - Manage Repositories
+![Admin Panel](images/admin.png)
+
 ## 🌟 Key Features
 
 - 💬 Chat with your code using natural language
