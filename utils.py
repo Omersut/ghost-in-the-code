@@ -576,7 +576,48 @@ class ProjectAssistant:
                     f"{self.ollama_url}/api/generate",
                     json={
                         "model": "mistral",
-                        "prompt": prompt,
+                        "prompt": prompt + "\n\nFormat your response using EXACTLY these HTML rules:\n\n" +
+                        "1. Basic Structure:\n" +
+                        "   - Start with overview in <p> tags\n" +
+                        "   - Use <h2> for main sections (NEVER use h1)\n" +
+                        "   - Use <h3> for subsections\n" +
+                        "   - Each paragraph in separate <p> tags\n\n" +
+                        "2. Code Formatting:\n" +
+                        "   For code blocks use EXACTLY this format:\n" +
+                        "   <pre><code class='language-[language]'>\n" +
+                        "   your code here\n" +
+                        "   </code></pre>\n\n" +
+                        "   For inline code use: <code>code here</code>\n\n" +
+                        "3. List Formatting:\n" +
+                        "   For unordered lists use EXACTLY:\n" +
+                        "   <ul>\n" +
+                        "     <li>First item</li>\n" +
+                        "     <li>Second item</li>\n" +
+                        "   </ul>\n\n" +
+                        "   For ordered lists use EXACTLY:\n" +
+                        "   <ol>\n" +
+                        "     <li>First item</li>\n" +
+                        "     <li>Second item</li>\n" +
+                        "   </ol>\n\n" +
+                        "4. Other Elements:\n" +
+                        "   - Use <strong> for emphasis\n" +
+                        "   - Use <blockquote> for important notes\n" +
+                        "   - Add line breaks between sections\n\n" +
+                        "Example Structure:\n\n" +
+                        "<p>Overview paragraph here...</p>\n\n" +
+                        "<h2>Main Section</h2>\n" +
+                        "<p>Section content here...</p>\n\n" +
+                        "<h3>Subsection</h3>\n" +
+                        "<p>Subsection content here...</p>\n\n" +
+                        "<pre><code class='language-javascript'>\n" +
+                        "function example() {\n" +
+                        "    return true;\n" +
+                        "}\n" +
+                        "</code></pre>\n\n" +
+                        "<ul>\n" +
+                        "  <li>List item one</li>\n" +
+                        "  <li>List item two</li>\n" +
+                        "</ul>",
                         "stream": True
                     }
                 ) as response:
@@ -643,7 +684,14 @@ class ProjectAssistant:
 
 Question: {question}
 
-Please provide a clear and concise answer based on the file contents above. For JSON files, explain the key configurations and their purposes."""
+Please provide a clear and well-structured answer:
+1. Start with a brief overview
+2. Break down your explanation into logical sections using markdown headings
+3. Use bullet points or numbered lists for steps or features
+4. When showing code examples, use proper code blocks with language specification
+5. For configuration files, explain key settings in a structured way
+6. Use blockquotes (>) for important notes or warnings
+7. When referencing files, use this format: `📄 path/to/file.ext`"""
 
                     return StreamingResponse(
                         self._query_ollama(prompt),
@@ -684,7 +732,13 @@ Please provide a clear and concise answer based on the file contents above. For 
 
 Question: {question}
 
-Please provide a clear and concise answer about this repository."""
+Please provide a clear and well-structured answer:
+1. Start with a brief overview
+2. Break down your explanation into logical sections using markdown headings
+3. Use bullet points or numbered lists for steps or features
+4. When showing code examples, use proper code blocks with language specification
+5. Use blockquotes (>) for important notes or warnings
+6. When referencing files, use this format: `📄 path/to/file.ext`"""
                         else:
                             prompt = f"""You are analyzing all repositories. Here are some relevant parts:
 
@@ -692,7 +746,13 @@ Please provide a clear and concise answer about this repository."""
 
 Question: {question}
 
-Please provide a clear and concise answer."""
+Please provide a clear and well-structured answer:
+1. Start with a brief overview
+2. Break down your explanation into logical sections using markdown headings
+3. Use bullet points or numbered lists for steps or features
+4. When showing code examples, use proper code blocks with language specification
+5. Use blockquotes (>) for important notes or warnings
+6. When referencing files, use this format: `📄 path/to/file.ext`"""
 
                         return StreamingResponse(
                             self._query_ollama(prompt),
@@ -1668,7 +1728,14 @@ class LLMAssistant:
 
 Question: {question}
 
-Please provide a clear and concise answer based on the file contents above. For JSON files, explain the key configurations and their purposes."""
+Please provide a clear and well-structured answer:
+1. Start with a brief overview
+2. Break down your explanation into logical sections using markdown headings
+3. Use bullet points or numbered lists for steps or features
+4. When showing code examples, use proper code blocks with language specification
+5. For configuration files, explain key settings in a structured way
+6. Use blockquotes (>) for important notes or warnings
+7. When referencing files, use this format: `📄 path/to/file.ext`"""
 
                     return StreamingResponse(
                         self._query_ollama(prompt),
@@ -1709,7 +1776,13 @@ Please provide a clear and concise answer based on the file contents above. For 
 
 Question: {question}
 
-Please provide a clear and concise answer about this repository."""
+Please provide a clear and well-structured answer:
+1. Start with a brief overview
+2. Break down your explanation into logical sections using markdown headings
+3. Use bullet points or numbered lists for steps or features
+4. When showing code examples, use proper code blocks with language specification
+5. Use blockquotes (>) for important notes or warnings
+6. When referencing files, use this format: `📄 path/to/file.ext`"""
                         else:
                             prompt = f"""You are analyzing all repositories. Here are some relevant parts:
 
@@ -1717,7 +1790,13 @@ Please provide a clear and concise answer about this repository."""
 
 Question: {question}
 
-Please provide a clear and concise answer."""
+Please provide a clear and well-structured answer:
+1. Start with a brief overview
+2. Break down your explanation into logical sections using markdown headings
+3. Use bullet points or numbered lists for steps or features
+4. When showing code examples, use proper code blocks with language specification
+5. Use blockquotes (>) for important notes or warnings
+6. When referencing files, use this format: `📄 path/to/file.ext`"""
 
                         return StreamingResponse(
                             self._query_ollama(prompt),
