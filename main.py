@@ -255,7 +255,7 @@ async def get_repo_stats(repo_id: str):
         raise HTTPException(status_code=500, detail=f"Error getting repo stats: {str(e)}")
 
 @app.get("/api/repo/{repo_id:path}/details/recent-activity")
-async def get_repo_recent_activity(repo_id: str, limit: int = 20):
+async def get_repo_recent_activity(repo_id: str, limit: int = 5):
     try:
         # Repo bilgilerini config'den al
         repo = next((r for r in project_assistant.config["repositories"] if r["name"] == repo_id), None)

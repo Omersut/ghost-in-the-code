@@ -95,6 +95,7 @@
             display: grid;
             grid-template-columns: 1fr;
             gap: 0.5rem;
+            margin-bottom: 50px;
         }
 
         .commit-card {
@@ -483,6 +484,16 @@
                     <span class="filter-label">File:</span>
                     <input type="text" class="filter-input" id="fileFilter" placeholder="Filter by file path...">
                 </div>
+                <div class="filter-group">
+                    <span class="filter-label">Commit Limit:</span>
+                    <select class="filter-select" id="limitFilter">
+                        <option value="5">Last 5 commits</option>
+                        <option value="10">Last 10 commits</option>
+                        <option value="20">Last 20 commits</option>
+                        <option value="50">Last 50 commits</option>
+                        <option value="100">Last 100 commits</option>
+                    </select>
+                </div>
             </div>
             <div id="loadingIndicator" class="loading" style="display: none;">
                 <div class="loading-spinner"></div>
@@ -546,18 +557,28 @@
                 `;
 
                 // Recent Activity
-                const activityResponse = await fetch(`/api/repo/${encodeURIComponent(repoId)}/details/recent-activity`);
+                const activityResponse = await fetch(`/api/repo/${encodeURIComponent(repoId)}/details/recent-activity?limit=5`);
                 const activity = await activityResponse.json();
                 allCommits = activity; // Tüm commit'leri sakla
 
                 // Yazar listesini oluştur
                 const authors = [...new Set(activity.map(commit => commit.author.name))];
                 const authorSelect = document.getElementById('authorFilter');
+                authorSelect.innerHTML = '<option value="">All Authors</option>';
                 authors.forEach(author => {
                     const option = document.createElement('option');
                     option.value = author;
                     option.textContent = author;
                     authorSelect.appendChild(option);
+                });
+
+                // Commit limit seçeneğini ekle
+                const limitSelect = document.getElementById('limitFilter');
+                [5, 10, 20, 50, 100].forEach(limit => {
+                    const option = document.createElement('option');
+                    option.value = limit;
+                    option.textContent = `Last ${limit} commits`;
+                    limitSelect.appendChild(option);
                 });
 
                 renderCommits(activity);
@@ -681,6 +702,13 @@
         document.getElementById('authorFilter').addEventListener('change', filterCommits);
         document.getElementById('dateFilter').addEventListener('change', filterCommits);
         document.getElementById('fileFilter').addEventListener('input', filterCommits);
+        document.getElementById('limitFilter').addEventListener('change', async () => {
+            const limit = document.getElementById('limitFilter').value;
+            const activityResponse = await fetch(`/api/repo/${encodeURIComponent(repoId)}/details/recent-activity?limit=${limit}`);
+            const activity = await activityResponse.json();
+            allCommits = activity;
+            filterCommits();
+        });
 
         async function showCommitDetails(commitHash) {
             try {
