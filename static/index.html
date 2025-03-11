@@ -100,6 +100,17 @@
             border-color: var(--primary);
         }
 
+        .query-type-btn.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: var(--surface-lighter);
+        }
+
+        .query-type-btn.disabled:hover {
+            background: var(--surface-lighter);
+            border-color: var(--surface-lighter);
+        }
+
         /* File Explorer Improvements */
         .file-explorer-container {
             flex: 1;
@@ -1002,10 +1013,10 @@
             </div>
             
             <div class="query-types">
-                <button class="query-type-btn" data-type="all" data-tooltip="Search across all repositories">
-                    🔍 All Repositories
+                <button class="query-type-btn disabled" data-type="all" data-tooltip="Coming soon! This feature will allow searching across all repositories">
+                    🔍 All Repositories (Coming Soon)
                 </button>
-                <button class="query-type-btn" data-type="repo" data-tooltip="Focus on the current repository">
+                <button class="query-type-btn active" data-type="repo" data-tooltip="Focus on the current repository">
                     📁 Current Repository
                 </button>
                 <button class="query-type-btn" data-type="files" data-tooltip="Select specific files to query">
@@ -1172,9 +1183,20 @@
         // Query type değiştiğinde
         document.querySelectorAll('.query-type-btn').forEach(btn => {
             btn.addEventListener('click', () => {
+                if (btn.classList.contains('disabled')) {
+                    return;
+                }
+
+                // Repo seçili değilse ve current repository veya files seçilmeye çalışılıyorsa
+                if (!currentRepo && (btn.dataset.type === 'repo' || btn.dataset.type === 'files')) {
+                    alert('Please select a repository first');
+                    return;
+                }
+
                 // Aktif butonu güncelle
                 document.querySelectorAll('.query-type-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
+
 
                 currentQueryType = btn.dataset.type;
                 
@@ -1318,8 +1340,10 @@
             // Query type butonlarını dinle
             document.querySelectorAll('.query-type-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    currentQueryType = btn.dataset.type;
-                    handleContextChange();
+                    if(btn.dataset.type != "all"){
+                        currentQueryType = btn.dataset.type;
+                        handleContextChange();
+                    }
                 });
             });
         });
@@ -1344,6 +1368,14 @@
                     if (projectId) {
                         currentRepo = projectId;
                         await loadProjectStructure(projectId);
+                        
+                        // Repo seçildiğinde otomatik olarak "Current Repository" seçeneğini aktif yap
+                        document.querySelectorAll('.query-type-btn').forEach(btn => {
+                            if (btn.dataset.type === 'repo') {
+                                btn.click();
+                            }
+                        });
+
                         handleContextChange();
                         // Detay butonunu göster
                         const detailsBtn = document.createElement('a');
@@ -1358,6 +1390,10 @@
                         // Yeni butonu ekle
                         detailsBtn.classList.add('repo-details-btn');
                         select.parentElement.appendChild(detailsBtn);
+                    } else {
+                        currentRepo = null;
+                        document.getElementById('fileExplorer').innerHTML = '';
+                        handleContextChange();
                     }
                 });
             } catch (error) {

@@ -608,68 +608,85 @@ class ProjectAssistant:
             print(f"Processing query - Type: {query_type}, Repo: {repo_name}")
             print(f"Question: {question}")
 
-            collection = self.collections.get(repo_name)
-            
-            if not collection:
-                print(f"Collection not found for repo: {repo_name}")
-                return f"Repository '{repo_name}' not found in collections."
-
             try:
                 if query_type == "files" and files:
-                    # Dosya içeriklerini al
+                    # Dosya içeriklerini doğrudan oku
+                    repo = next((r for r in self.config["repositories"] if r["name"].lower() == repo_name), None)
+                    if not repo:
+                        return f"Repository '{repo_name}' not found."
+
+                    repo_path = Path(repo["local_path"])
                     file_contents = []
+
                     for file_path in files:
-                        results = collection.query(
-                            query_texts=[file_path],
-                            n_results=1,
-                            where={"file": file_path}
-                        )
-                        if results["documents"][0]:
-                            file_contents.extend(results["documents"][0])
+                        try:
+                            full_path = repo_path / file_path
+                            if not full_path.exists():
+                                continue
+
+                            with open(full_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                                file_contents.append(f"File: {file_path}\n\n{content}")
+                        except Exception as e:
+                            print(f"Error reading file {file_path}: {str(e)}")
+                            continue
 
                     if not file_contents:
-                        return "No content found for selected files."
+                        return "No readable files found."
 
-                    context_text = "\n---\n".join(file_contents)
-
-                else:  # repo veya all için
-                    # Repo içeriğinden ilgili kısımları al
-                    results = collection.query(
-                        query_texts=[question],
-                        n_results=5,
-                        include=["documents", "metadatas"]
-                    )
-
-                    if not results['documents'][0]:
-                        return "Bu repo için ilgili bir bilgi bulunamadı."
-
-                    context_parts = []
-                    for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
-                        context_parts.append(f"[{metadata['file']}]\n{doc}")
-
-                    context_text = "\n---\n".join(context_parts)
-
-                print(f"Found relevant content, generating response...")
-
-                # Prompt'u hazırla
-                if query_type == "files":
+                    context_text = "\n\n---\n\n".join(file_contents)
+                    
+                    # Prompt'u hazırla
                     prompt = f"""You are analyzing these specific files from repository "{repo_name}":
 
 {context_text}
 
 Question: {question}
 
-Please provide a clear and concise answer based on the file contents above."""
-                elif query_type == "repo":
-                    prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
+Please provide a clear and concise answer based on the file contents above. For JSON files, explain the key configurations and their purposes."""
+
+                    return StreamingResponse(
+                        self._query_ollama(prompt),
+                        media_type='text/event-stream'
+                    )
+
+                else:  # repo veya all için mevcut kodu kullan
+                    collection = self.collections.get(repo_name)
+                    
+                    if not collection:
+                        print(f"Collection not found for repo: {repo_name}")
+                        return f"Repository '{repo_name}' not found in collections."
+
+                    try:
+                        # Repo içeriğinden ilgili kısımları al
+                        results = collection.query(
+                            query_texts=[question],
+                            n_results=5,
+                            include=["documents", "metadatas"]
+                        )
+
+                        if not results['documents'][0]:
+                            return "Bu repo için ilgili bir bilgi bulunamadı."
+
+                        context_parts = []
+                        for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
+                            context_parts.append(f"[{metadata['file']}]\n{doc}")
+
+                        context_text = "\n---\n".join(context_parts)
+
+                        print(f"Found relevant content, generating response...")
+
+                        # Prompt'u hazırla
+                        if query_type == "repo":
+                            prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
 
 {context_text}
 
 Question: {question}
 
 Please provide a clear and concise answer about this repository."""
-                else:
-                    prompt = f"""You are analyzing all repositories. Here are some relevant parts:
+                        else:
+                            prompt = f"""You are analyzing all repositories. Here are some relevant parts:
 
 {context_text}
 
@@ -677,10 +694,14 @@ Question: {question}
 
 Please provide a clear and concise answer."""
 
-                return StreamingResponse(
-                    self._query_ollama(prompt),
-                    media_type='text/event-stream'
-                )
+                        return StreamingResponse(
+                            self._query_ollama(prompt),
+                            media_type='text/event-stream'
+                        )
+
+                    except Exception as e:
+                        print(f"Error in query: {e}")
+                        return f"Error processing query: {str(e)}"
 
             except Exception as e:
                 print(f"Error in query: {e}")
@@ -1612,68 +1633,85 @@ class LLMAssistant:
             print(f"Processing query - Type: {query_type}, Repo: {repo_name}")
             print(f"Question: {question}")
 
-            collection = self.collections.get(repo_name)
-            
-            if not collection:
-                print(f"Collection not found for repo: {repo_name}")
-                return f"Repository '{repo_name}' not found in collections."
-
             try:
                 if query_type == "files" and files:
-                    # Dosya içeriklerini al
+                    # Dosya içeriklerini doğrudan oku
+                    repo = next((r for r in self.config["repositories"] if r["name"].lower() == repo_name), None)
+                    if not repo:
+                        return f"Repository '{repo_name}' not found."
+
+                    repo_path = Path(repo["local_path"])
                     file_contents = []
+
                     for file_path in files:
-                        results = collection.query(
-                            query_texts=[file_path],
-                            n_results=1,
-                            where={"file": file_path}
-                        )
-                        if results["documents"][0]:
-                            file_contents.extend(results["documents"][0])
+                        try:
+                            full_path = repo_path / file_path
+                            if not full_path.exists():
+                                continue
+
+                            with open(full_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                                file_contents.append(f"File: {file_path}\n\n{content}")
+                        except Exception as e:
+                            print(f"Error reading file {file_path}: {str(e)}")
+                            continue
 
                     if not file_contents:
-                        return "No content found for selected files."
+                        return "No readable files found."
 
-                    context_text = "\n---\n".join(file_contents)
-
-                else:  # repo veya all için
-                    # Repo içeriğinden ilgili kısımları al
-                    results = collection.query(
-                        query_texts=[question],
-                        n_results=5,
-                        include=["documents", "metadatas"]
-                    )
-
-                    if not results['documents'][0]:
-                        return "Bu repo için ilgili bir bilgi bulunamadı."
-
-                    context_parts = []
-                    for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
-                        context_parts.append(f"[{metadata['file']}]\n{doc}")
-
-                    context_text = "\n---\n".join(context_parts)
-
-                print(f"Found relevant content, generating response...")
-
-                # Prompt'u hazırla
-                if query_type == "files":
+                    context_text = "\n\n---\n\n".join(file_contents)
+                    
+                    # Prompt'u hazırla
                     prompt = f"""You are analyzing these specific files from repository "{repo_name}":
 
 {context_text}
 
 Question: {question}
 
-Please provide a clear and concise answer based on the file contents above."""
-                elif query_type == "repo":
-                    prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
+Please provide a clear and concise answer based on the file contents above. For JSON files, explain the key configurations and their purposes."""
+
+                    return StreamingResponse(
+                        self._query_ollama(prompt),
+                        media_type='text/event-stream'
+                    )
+
+                else:  # repo veya all için mevcut kodu kullan
+                    collection = self.collections.get(repo_name)
+                    
+                    if not collection:
+                        print(f"Collection not found for repo: {repo_name}")
+                        return f"Repository '{repo_name}' not found in collections."
+
+                    try:
+                        # Repo içeriğinden ilgili kısımları al
+                        results = collection.query(
+                            query_texts=[question],
+                            n_results=5,
+                            include=["documents", "metadatas"]
+                        )
+
+                        if not results['documents'][0]:
+                            return "Bu repo için ilgili bir bilgi bulunamadı."
+
+                        context_parts = []
+                        for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
+                            context_parts.append(f"[{metadata['file']}]\n{doc}")
+
+                        context_text = "\n---\n".join(context_parts)
+
+                        print(f"Found relevant content, generating response...")
+
+                        # Prompt'u hazırla
+                        if query_type == "repo":
+                            prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
 
 {context_text}
 
 Question: {question}
 
 Please provide a clear and concise answer about this repository."""
-                else:
-                    prompt = f"""You are analyzing all repositories. Here are some relevant parts:
+                        else:
+                            prompt = f"""You are analyzing all repositories. Here are some relevant parts:
 
 {context_text}
 
@@ -1681,10 +1719,14 @@ Question: {question}
 
 Please provide a clear and concise answer."""
 
-                return StreamingResponse(
-                    self._query_ollama(prompt),
-                    media_type='text/event-stream'
-                )
+                        return StreamingResponse(
+                            self._query_ollama(prompt),
+                            media_type='text/event-stream'
+                        )
+
+                    except Exception as e:
+                        print(f"Error in query: {e}")
+                        return f"Error processing query: {str(e)}"
 
             except Exception as e:
                 print(f"Error in query: {e}")
