@@ -570,7 +570,7 @@ class ProjectAssistant:
     async def _query_ollama(self, prompt: str):
         """Stream response from Ollama"""
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 async with client.stream(
                     "POST",
                     f"{self.ollama_url}/api/generate",
