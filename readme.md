@@ -47,7 +47,7 @@ ollama pull mistral
 
 3. Run the app:
 ```bash
-uvicorn main:app --reload
+python -m uvicorn main:app --reload
 ```
 
 4. Open `http://localhost:8000` in your browser
