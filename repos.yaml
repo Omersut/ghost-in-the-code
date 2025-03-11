@@ -1,8 +1,5 @@
 documents: null
 repositories:
-- is_processed: true
-  local_path: D:/otfil
-  name: otfil
-- is_processed: true
-  local_path: D:/PROJECTS/Virtualnfluence
-  name: Virtualnfluence
+  - is_processed: true
+    local_path: D:/example
+    name: example
