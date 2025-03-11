@@ -4,8 +4,5 @@ repositories:
   local_path: D:/otfil
   name: otfil
 - is_processed: true
-  local_path: D:/tv.b2c-git
-  name: B2C
-- is_processed: true
   local_path: D:/PROJECTS/Virtualnfluence
   name: Virtualnfluence
