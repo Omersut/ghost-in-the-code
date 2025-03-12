@@ -642,19 +642,12 @@ class ProjectAssistant:
 
     def _detect_prompt_language(self, text: str) -> str:
         """Detect the language of the prompt text"""
-        # Common Turkish words and characters
-        turkish_indicators = ['mi', 'mı', 'mu', 'mü', 'nasıl', 'ne', 'neden', 'niçin', 'hangi', 
-                            'ğ', 'ş', 'ı', 'ö', 'ü', 'ç', 'nasil', 'nerde', 'nerede', 'için']
-        
-        # Convert text to lowercase for better matching
-        text_lower = text.lower()
-        
-        # Check for Turkish indicators
-        for indicator in turkish_indicators:
-            if indicator in text_lower:
-                return "Turkish"
-        
-        return "English"
+        turkish_chars = "çğıöşüÇĞİÖŞÜ"
+        if any(char in turkish_chars for char in text):
+            return "turkish"
+        else:
+            return "english"
+
 
     async def query(self, question: str, context: Optional[dict] = None) -> dict:
         try:
