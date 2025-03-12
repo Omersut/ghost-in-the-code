@@ -292,7 +292,6 @@ class ProjectAssistant:
                 # Test ve dökümantasyon
                 'test',
                 'tests',
-                'docs',
                 'examples',
                 'samples',
                 
@@ -570,13 +569,16 @@ class ProjectAssistant:
     async def _query_ollama(self, prompt: str):
         """Stream response from Ollama"""
         try:
+            # Detect language from the prompt
+            detected_lang = self._detect_prompt_language(prompt)
+            
             async with httpx.AsyncClient(timeout=60.0) as client:
                 async with client.stream(
                     "POST",
                     f"{self.ollama_url}/api/generate",
                     json={
                         "model": "mistral",
-                        "prompt": prompt + "\n\nFormat your response using EXACTLY these HTML rules:\n\n" +
+                        "prompt": prompt + f"\n\nRespond in {detected_lang}. Format your response using EXACTLY these HTML rules:\n\n" +
                         "1. Basic Structure:\n" +
                         "   - Start with overview in <p> tags\n" +
                         "   - Use <h2> for main sections (NEVER use h1)\n" +
@@ -584,10 +586,10 @@ class ProjectAssistant:
                         "   - Each paragraph in separate <p> tags\n\n" +
                         "2. Code Formatting:\n" +
                         "   For code blocks use EXACTLY this format:\n" +
-                        "   <pre><code class='language-[language]'>\n" +
+                        "   <pre><code class='language-[language]' style='display:block;background:#1e1e1e;color:#d4d4d4;padding:1rem;border-radius:4px;font-family:\"Fira Code\",monospace;font-size:14px;line-height:1.5;overflow-x:auto;'>\n" +
                         "   your code here\n" +
                         "   </code></pre>\n\n" +
-                        "   For inline code use: <code>code here</code>\n\n" +
+                        "   For inline code use: <code style='background:#1e1e1e;color:#d4d4d4;padding:2px 4px;border-radius:3px;font-family:\"Fira Code\",monospace;'>code here</code>\n\n" +
                         "3. List Formatting:\n" +
                         "   For unordered lists use EXACTLY:\n" +
                         "   <ul>\n" +
@@ -603,13 +605,16 @@ class ProjectAssistant:
                         "   - Use <strong> for emphasis\n" +
                         "   - Use <blockquote> for important notes\n" +
                         "   - Add line breaks between sections\n\n" +
+                        "5. Code Block Rules:\n" +
+                        "   - ALWAYS specify the language class\n" +
+                        "   - Use proper syntax highlighting\n" +
+                        "   - Maintain code indentation\n" +
+                        "   - Escape HTML characters in code\n\n" +
                         "Example Structure:\n\n" +
                         "<p>Overview paragraph here...</p>\n\n" +
                         "<h2>Main Section</h2>\n" +
                         "<p>Section content here...</p>\n\n" +
-                        "<h3>Subsection</h3>\n" +
-                        "<p>Subsection content here...</p>\n\n" +
-                        "<pre><code class='language-javascript'>\n" +
+                        "<pre><code class='language-javascript' style='display:block;background:#1e1e1e;color:#d4d4d4;padding:1rem;border-radius:4px;font-family:\"Fira Code\",monospace;font-size:14px;line-height:1.5;overflow-x:auto;'>\n" +
                         "function example() {\n" +
                         "    return true;\n" +
                         "}\n" +
@@ -634,6 +639,22 @@ class ProjectAssistant:
         except Exception as e:
             print(f"Error in _query_ollama: {e}")
             yield f"data: Error: {str(e)}\n\n"
+
+    def _detect_prompt_language(self, text: str) -> str:
+        """Detect the language of the prompt text"""
+        # Common Turkish words and characters
+        turkish_indicators = ['mi', 'mı', 'mu', 'mü', 'nasıl', 'ne', 'neden', 'niçin', 'hangi', 
+                            'ğ', 'ş', 'ı', 'ö', 'ü', 'ç', 'nasil', 'nerde', 'nerede', 'için']
+        
+        # Convert text to lowercase for better matching
+        text_lower = text.lower()
+        
+        # Check for Turkish indicators
+        for indicator in turkish_indicators:
+            if indicator in text_lower:
+                return "Turkish"
+        
+        return "English"
 
     async def query(self, question: str, context: Optional[dict] = None) -> dict:
         try:
@@ -1524,6 +1545,8 @@ class LLMAssistant:
 
         except Exception as e:
             print(f"Error listing collections: {e}")
+
+        print(f"\nLoaded collections: {list(self.collections.keys())}")
 
     def add_repo(self, name: str, path: Path):
         try:
