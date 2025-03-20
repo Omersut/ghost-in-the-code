@@ -621,17 +621,11 @@ class ProjectAssistant:
             # Optimize edilmiş prompt
             simplified_prompt = f"""You are a helpful AI assistant. Please provide a clear and concise answer in {detected_lang}.
 
-{prompt}
-
-Format your response using these simple rules:
-1. Use <p> for paragraphs
-2. Use <code> for code snippets
-3. Use <ul> or <ol> for lists
-4. Use <strong> for emphasis"""
+{prompt}"""
 
             # Ollama bağlantısını kontrol et
             try:
-                async with httpx.AsyncClient(timeout=60.0) as client:  # Timeout'u 60 saniyeye çıkar
+                async with httpx.AsyncClient(timeout=30.0) as client:  # Timeout'u 30 saniyeye düşür
                     # Önce bağlantıyı test et
                     try:
                         response = await client.get(f"{self.ollama_url}/api/tags")
@@ -646,7 +640,7 @@ Format your response using these simple rules:
                                           stdout=subprocess.PIPE, 
                                           stderr=subprocess.PIPE)
                             # Servisin başlaması için bekle
-                            await asyncio.sleep(2)
+                            await asyncio.sleep(1)  # 2 saniyeden 1 saniyeye düşür
                             # Tekrar bağlanmayı dene
                             response = await client.get(f"{self.ollama_url}/api/tags")
                             if response.status_code != 200:
@@ -663,12 +657,12 @@ Format your response using these simple rules:
                             "prompt": simplified_prompt,
                             "stream": True,
                             "options": {
-                                "num_ctx": 2048,
-                                "temperature": 0.5,
-                                "num_predict": 256,
-                                "num_thread": 8,
+                                "num_ctx": 1024,  # Context boyutunu azalt
+                                "temperature": 0.7,  # Daha hızlı yanıt için artır
+                                "num_predict": 128,  # Tahmin sayısını azalt
+                                "num_thread": 4,  # Thread sayısını azalt
                                 "num_gpu": 1,
-                                "timeout": 60000  # 60 saniye timeout
+                                "timeout": 30000  # 30 saniye timeout
                             }
                         }
                     ) as response:
@@ -690,7 +684,7 @@ Format your response using these simple rules:
                 print("Ollama timeout error - retrying...")
                 # Bir kez daha dene
                 try:
-                    async with httpx.AsyncClient(timeout=60.0) as client:
+                    async with httpx.AsyncClient(timeout=30.0) as client:
                         async with client.stream(
                             "POST",
                             f"{self.ollama_url}/api/generate",
@@ -699,12 +693,12 @@ Format your response using these simple rules:
                                 "prompt": simplified_prompt,
                                 "stream": True,
                                 "options": {
-                                    "num_ctx": 2048,
-                                    "temperature": 0.5,
-                                    "num_predict": 256,
-                                    "num_thread": 8,
+                                    "num_ctx": 1024,
+                                    "temperature": 0.7,
+                                    "num_predict": 128,
+                                    "num_thread": 4,
                                     "num_gpu": 1,
-                                    "timeout": 60000
+                                    "timeout": 30000
                                 }
                             }
                         ) as response:
@@ -741,17 +735,13 @@ Format your response using these simple rules:
 
     async def query(self, question: str, context: Optional[dict] = None) -> dict:
         try:
-            print(f"Available collections: {list(self.collections.keys())}")
             if not self.collections:
                 return "Henüz hiçbir repo eklenmemiş."
 
             # Context bilgilerini al
             query_type = context.get("type", "all")
-            repo_name = context.get("repo", "").lower()  # Repo adını küçük harfe çevir
+            repo_name = context.get("repo", "").lower()
             files = context.get("files", [])
-
-            print(f"Processing query - Type: {query_type}, Repo: {repo_name}")
-            print(f"Question: {question}")
 
             # Basit metadata soruları için özel işleyici
             metadata_questions = {
@@ -777,7 +767,8 @@ Format your response using these simple rules:
                     repo_path = Path(repo["local_path"])
                     file_contents = []
 
-                    for file_path in files:
+                    # Sadece ilk 2 dosyayı oku
+                    for file_path in files[:2]:
                         try:
                             full_path = repo_path / file_path
                             if not full_path.exists():
@@ -785,6 +776,9 @@ Format your response using these simple rules:
 
                             with open(full_path, 'r', encoding='utf-8') as f:
                                 content = f.read()
+                                # Dosya içeriğini sınırla
+                                if len(content) > 2000:
+                                    content = content[:2000] + "..."
                                 file_contents.append(f"File: {file_path}\n\n{content}")
                         except Exception as e:
                             print(f"Error reading file {file_path}: {str(e)}")
@@ -795,52 +789,29 @@ Format your response using these simple rules:
 
                     context_text = "\n\n---\n\n".join(file_contents)
                     
-                    # Prompt'u hazırla
-                    prompt = f"""You are analyzing these specific files from repository "{repo_name}":
+                    # Basitleştirilmiş prompt
+                    prompt = f"""Analyze these files and answer the question:
 
 {context_text}
 
-Question: {question}
-
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. For configuration files, explain key settings in a structured way
-6. Use blockquotes (>) for important notes or warnings
-7. When referencing files, use this format: `📄 path/to/file.ext`"""
+Q: {question}"""
 
                     return StreamingResponse(
                         self._query_ollama(prompt),
                         media_type='text/event-stream'
                     )
 
-                else:  # repo veya all için mevcut kodu kullan
+                else:  # repo veya all için
                     collection = self.collections.get(repo_name)
                     
                     if not collection:
-                        print(f"Collection not found for repo: {repo_name}")
                         return f"Repository '{repo_name}' not found in collections."
 
                     try:
-                        # README.md kontrolünü paralel yap
-                        readme_content = None
-                        if query_type == "repo":
-                            repo = next((r for r in self.config["repositories"] if r["name"].lower() == repo_name), None)
-                            if repo:
-                                readme_path = Path(repo["local_path"]) / "README.md"
-                                if readme_path.exists():
-                                    try:
-                                        with open(readme_path, 'r', encoding='utf-8') as f:
-                                            readme_content = f.read()
-                                    except:
-                                        pass
-
-                        # Repo içeriğinden ilgili kısımları al
+                        # Sadece 2 sonuç al
                         results = collection.query(
                             query_texts=[question],
-                            n_results=3,  # Sonuç sayısını azalt
+                            n_results=2,
                             include=["documents", "metadatas"]
                         )
 
@@ -850,35 +821,38 @@ Please provide a clear and well-structured answer:
                         # Context'i hızlıca hazırla
                         context_parts = []
                         
-                        # README.md varsa ekle
-                        if readme_content:
-                            context_parts.append(f"[README.md]\n{readme_content}")
+                        # README.md kontrolünü sadece repo sorgularında yap
+                        if query_type == "repo":
+                            repo = next((r for r in self.config["repositories"] if r["name"].lower() == repo_name), None)
+                            if repo:
+                                readme_path = Path(repo["local_path"]) / "README.md"
+                                if readme_path.exists():
+                                    try:
+                                        with open(readme_path, 'r', encoding='utf-8') as f:
+                                            readme_content = f.read()
+                                            if len(readme_content) > 1000:
+                                                readme_content = readme_content[:1000] + "..."
+                                            context_parts.append(f"[README.md]\n{readme_content}")
+                                    except:
+                                        pass
 
-                        # Diğer dökümanları ekle (ilk 3 sonuç)
-                        for doc, metadata in zip(results['documents'][0][:3], results['metadatas'][0][:3]):
+                        # Sadece ilk 2 sonucu ekle
+                        for doc, metadata in zip(results['documents'][0][:2], results['metadatas'][0][:2]):
+                            if len(doc) > 1000:
+                                doc = doc[:1000] + "..."
                             context_parts.append(f"[{metadata['file']}]\n{doc}")
 
                         context_text = "\n---\n".join(context_parts)
 
-                        print(f"Found relevant content, generating response...")
-
-                        # Prompt'u optimize et
-                        base_prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
+                        # Basitleştirilmiş prompt
+                        base_prompt = f"""Analyze this code and answer the question:
 
 {context_text}
 
-Question: {question}
-
-Please provide a clear and well-structured answer:"""
-
-                        # Prompt'u hazırla
-                        if query_type == "repo":
-                            prompt = base_prompt
-                        else:
-                            prompt = base_prompt.replace(f'repository "{repo_name}"', "all repositories")
+Q: {question}"""
 
                         return StreamingResponse(
-                            self._query_ollama(prompt),
+                            self._query_ollama(base_prompt),
                             media_type='text/event-stream'
                         )
 
@@ -1563,7 +1537,7 @@ Question: {question}"""
     async def stream_response(self, prompt: str):
         """Stream the response from Ollama"""
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 async with client.stream(
                     "POST",
                     f"{self.ollama_url}/api/generate",
@@ -1806,17 +1780,13 @@ class LLMAssistant:
 
     async def query(self, question: str, context: Optional[dict] = None) -> dict:
         try:
-            print(f"Available collections: {list(self.collections.keys())}")
             if not self.collections:
                 return "Henüz hiçbir repo eklenmemiş."
 
             # Context bilgilerini al
             query_type = context.get("type", "all")
-            repo_name = context.get("repo", "").lower()  # Repo adını küçük harfe çevir
+            repo_name = context.get("repo", "").lower()
             files = context.get("files", [])
-
-            print(f"Processing query - Type: {query_type}, Repo: {repo_name}")
-            print(f"Question: {question}")
 
             # Basit metadata soruları için özel işleyici
             metadata_questions = {
@@ -1842,7 +1812,8 @@ class LLMAssistant:
                     repo_path = Path(repo["local_path"])
                     file_contents = []
 
-                    for file_path in files:
+                    # Sadece ilk 2 dosyayı oku
+                    for file_path in files[:2]:
                         try:
                             full_path = repo_path / file_path
                             if not full_path.exists():
@@ -1850,6 +1821,9 @@ class LLMAssistant:
 
                             with open(full_path, 'r', encoding='utf-8') as f:
                                 content = f.read()
+                                # Dosya içeriğini sınırla
+                                if len(content) > 2000:
+                                    content = content[:2000] + "..."
                                 file_contents.append(f"File: {file_path}\n\n{content}")
                         except Exception as e:
                             print(f"Error reading file {file_path}: {str(e)}")
@@ -1860,52 +1834,29 @@ class LLMAssistant:
 
                     context_text = "\n\n---\n\n".join(file_contents)
                     
-                    # Prompt'u hazırla
-                    prompt = f"""You are analyzing these specific files from repository "{repo_name}":
+                    # Basitleştirilmiş prompt
+                    prompt = f"""Analyze these files and answer the question:
 
 {context_text}
 
-Question: {question}
-
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. For configuration files, explain key settings in a structured way
-6. Use blockquotes (>) for important notes or warnings
-7. When referencing files, use this format: `📄 path/to/file.ext`"""
+Q: {question}"""
 
                     return StreamingResponse(
                         self._query_ollama(prompt),
                         media_type='text/event-stream'
                     )
 
-                else:  # repo veya all için mevcut kodu kullan
+                else:  # repo veya all için
                     collection = self.collections.get(repo_name)
                     
                     if not collection:
-                        print(f"Collection not found for repo: {repo_name}")
                         return f"Repository '{repo_name}' not found in collections."
 
                     try:
-                        # README.md kontrolünü paralel yap
-                        readme_content = None
-                        if query_type == "repo":
-                            repo = next((r for r in self.config["repositories"] if r["name"].lower() == repo_name), None)
-                            if repo:
-                                readme_path = Path(repo["local_path"]) / "README.md"
-                                if readme_path.exists():
-                                    try:
-                                        with open(readme_path, 'r', encoding='utf-8') as f:
-                                            readme_content = f.read()
-                                    except:
-                                        pass
-
-                        # Repo içeriğinden ilgili kısımları al
+                        # Sadece 2 sonuç al
                         results = collection.query(
                             query_texts=[question],
-                            n_results=3,  # Sonuç sayısını azalt
+                            n_results=2,
                             include=["documents", "metadatas"]
                         )
 
@@ -1915,35 +1866,38 @@ Please provide a clear and well-structured answer:
                         # Context'i hızlıca hazırla
                         context_parts = []
                         
-                        # README.md varsa ekle
-                        if readme_content:
-                            context_parts.append(f"[README.md]\n{readme_content}")
+                        # README.md kontrolünü sadece repo sorgularında yap
+                        if query_type == "repo":
+                            repo = next((r for r in self.config["repositories"] if r["name"].lower() == repo_name), None)
+                            if repo:
+                                readme_path = Path(repo["local_path"]) / "README.md"
+                                if readme_path.exists():
+                                    try:
+                                        with open(readme_path, 'r', encoding='utf-8') as f:
+                                            readme_content = f.read()
+                                            if len(readme_content) > 1000:
+                                                readme_content = readme_content[:1000] + "..."
+                                            context_parts.append(f"[README.md]\n{readme_content}")
+                                    except:
+                                        pass
 
-                        # Diğer dökümanları ekle (ilk 3 sonuç)
-                        for doc, metadata in zip(results['documents'][0][:3], results['metadatas'][0][:3]):
+                        # Sadece ilk 2 sonucu ekle
+                        for doc, metadata in zip(results['documents'][0][:2], results['metadatas'][0][:2]):
+                            if len(doc) > 1000:
+                                doc = doc[:1000] + "..."
                             context_parts.append(f"[{metadata['file']}]\n{doc}")
 
                         context_text = "\n---\n".join(context_parts)
 
-                        print(f"Found relevant content, generating response...")
-
-                        # Prompt'u optimize et
-                        base_prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
+                        # Basitleştirilmiş prompt
+                        base_prompt = f"""Analyze this code and answer the question:
 
 {context_text}
 
-Question: {question}
-
-Please provide a clear and well-structured answer:"""
-
-                        # Prompt'u hazırla
-                        if query_type == "repo":
-                            prompt = base_prompt
-                        else:
-                            prompt = base_prompt.replace(f'repository "{repo_name}"', "all repositories")
+Q: {question}"""
 
                         return StreamingResponse(
-                            self._query_ollama(prompt),
+                            self._query_ollama(base_prompt),
                             media_type='text/event-stream'
                         )
 
