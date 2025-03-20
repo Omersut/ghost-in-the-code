@@ -141,16 +141,29 @@ class RepoManager:
 class ProjectAssistant:
     def __init__(self):
         self.client = chromadb.PersistentClient(path="./chroma_db")
+        
+        # GPU optimizasyonları
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        if self.device == "cuda":
+            # GPU bellek optimizasyonları
+            torch.cuda.empty_cache()
+            torch.backends.cudnn.benchmark = True  # CUDNN optimizasyonu
+            torch.backends.cuda.matmul.allow_tf32 = True  # TF32 optimizasyonu
+            
+            # GPU'yu ısıt
+            self._warmup_gpu()
+        
+        # Model GPU'ya taşı
         self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
             model_name="all-MiniLM-L6-v2",
             device=self.device
         )
+        
         self.chat_history = {}
         self.collections = {}
         self.ollama_url = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        self.max_retries = 5
-        self.timeout = 60.0
+        self.max_retries = 3  # Retry sayısını azalt
+        self.timeout = 15.0  # Timeout'u düşür
         self._check_ollama_connection()
         self.current_context = {
             "type": "all",
@@ -161,8 +174,27 @@ class ProjectAssistant:
         self.load_config()
         # Mevcut koleksiyonları yükle
         self._load_existing_collections()
-        self._structure_cache = {}  # Dosya yapısı cache'i
-        self._cache_timeout = 300  # Cache timeout süresi (saniye)
+        self._structure_cache = {}
+        self._cache_timeout = 300
+
+    def _warmup_gpu(self):
+        """GPU'yu optimize et ve ısıt"""
+        if self.device == "cuda":
+            try:
+                # Daha büyük bir model ile GPU'yu ısıt
+                model = torch.nn.Linear(1000, 1000).cuda()
+                x = torch.randn(100, 1000).cuda()  # Daha büyük batch
+                for _ in range(5):
+                    model(x)
+                del model, x
+                torch.cuda.empty_cache()
+                
+                # GPU bellek optimizasyonları
+                torch.cuda.memory.empty_cache()
+                torch.cuda.memory.set_per_process_memory_fraction(0.9)  # GPU belleğinin %90'ını kullan
+                
+            except Exception as e:
+                print(f"GPU warmup error: {e}")
 
     def load_config(self):
         """repos.yaml dosyasından konfigürasyonu yükle"""
@@ -189,13 +221,27 @@ class ProjectAssistant:
     def _check_ollama_connection(self):
         """Check if Ollama service is running"""
         try:
-            response = requests.get(f"{self.ollama_url}/api/tags")
+            # Ollama servisinin çalışıp çalışmadığını kontrol et
+            response = requests.get(f"{self.ollama_url}/api/tags", timeout=10)
             if response.status_code != 200:
                 raise Exception(f"Ollama API error: {response.status_code}")
+            
+            # Mistral modelinin yüklü olup olmadığını kontrol et
+            models_response = requests.get(f"{self.ollama_url}/api/tags")
+            models = models_response.json().get("models", [])
+            if not any(model.get("name") == "mistral" for model in models):
+                print("Mistral model is not loaded. Loading it now...")
+                requests.post(f"{self.ollama_url}/api/pull", json={"name": "mistral"})
+            
             print("Ollama connection successful")
+        except requests.exceptions.ConnectionError:
+            print("Error: Could not connect to Ollama service")
+            print("Please make sure Ollama is running with: ollama serve")
+            raise
         except Exception as e:
             print(f"Warning: Ollama connection failed - {str(e)}")
             print("Please make sure Ollama is running with: ollama serve")
+            raise
 
     def _normalize_collection_name(self, name: str) -> str:
         """Repo ismini geçerli bir koleksiyon ismine dönüştür"""
@@ -567,75 +613,119 @@ class ProjectAssistant:
         return chunks
 
     async def _query_ollama(self, prompt: str):
-        """Stream response from Ollama"""
+        """Stream response from Ollama with optimized settings"""
         try:
             # Detect language from the prompt
             detected_lang = self._detect_prompt_language(prompt)
             
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                async with client.stream(
-                    "POST",
-                    f"{self.ollama_url}/api/generate",
-                    json={
-                        "model": "mistral",
-                        "prompt": prompt + f"\n\nRespond in {detected_lang}. Format your response using EXACTLY these HTML rules:\n\n" +
-                        "1. Basic Structure:\n" +
-                        "   - Start with overview in <p> tags\n" +
-                        "   - Use <h2> for main sections (NEVER use h1)\n" +
-                        "   - Use <h3> for subsections\n" +
-                        "   - Each paragraph in separate <p> tags\n\n" +
-                        "2. Code Formatting:\n" +
-                        "   For code blocks use EXACTLY this format:\n" +
-                        "   <pre><code class='language-[language]' style='display:block;background:#1e1e1e;color:#d4d4d4;padding:1rem;border-radius:4px;font-family:\"Fira Code\",monospace;font-size:14px;line-height:1.5;overflow-x:auto;'>\n" +
-                        "   your code here\n" +
-                        "   </code></pre>\n\n" +
-                        "   For inline code use: <code style='background:#1e1e1e;color:#d4d4d4;padding:2px 4px;border-radius:3px;font-family:\"Fira Code\",monospace;'>code here</code>\n\n" +
-                        "3. List Formatting:\n" +
-                        "   For unordered lists use EXACTLY:\n" +
-                        "   <ul>\n" +
-                        "     <li>First item</li>\n" +
-                        "     <li>Second item</li>\n" +
-                        "   </ul>\n\n" +
-                        "   For ordered lists use EXACTLY:\n" +
-                        "   <ol>\n" +
-                        "     <li>First item</li>\n" +
-                        "     <li>Second item</li>\n" +
-                        "   </ol>\n\n" +
-                        "4. Other Elements:\n" +
-                        "   - Use <strong> for emphasis\n" +
-                        "   - Use <blockquote> for important notes\n" +
-                        "   - Add line breaks between sections\n\n" +
-                        "5. Code Block Rules:\n" +
-                        "   - ALWAYS specify the language class\n" +
-                        "   - Use proper syntax highlighting\n" +
-                        "   - Maintain code indentation\n" +
-                        "   - Escape HTML characters in code\n\n" +
-                        "Example Structure:\n\n" +
-                        "<p>Overview paragraph here...</p>\n\n" +
-                        "<h2>Main Section</h2>\n" +
-                        "<p>Section content here...</p>\n\n" +
-                        "<pre><code class='language-javascript' style='display:block;background:#1e1e1e;color:#d4d4d4;padding:1rem;border-radius:4px;font-family:\"Fira Code\",monospace;font-size:14px;line-height:1.5;overflow-x:auto;'>\n" +
-                        "function example() {\n" +
-                        "    return true;\n" +
-                        "}\n" +
-                        "</code></pre>\n\n" +
-                        "<ul>\n" +
-                        "  <li>List item one</li>\n" +
-                        "  <li>List item two</li>\n" +
-                        "</ul>",
-                        "stream": True
-                    }
-                ) as response:
-                    async for line in response.aiter_lines():
-                        if line:
-                            try:
-                                data = json.loads(line)
-                                if "response" in data:
-                                    yield f"data: {data['response']}\n\n"
-                                elif "error" in data:
-                                    yield f"data: Error: {data['error']}\n\n"
-                            except json.JSONDecodeError:
-                                continue
+            # Optimize edilmiş prompt
+            simplified_prompt = f"""You are a helpful AI assistant. Please provide a clear and concise answer in {detected_lang}.
+
+{prompt}
+
+Format your response using these simple rules:
+1. Use <p> for paragraphs
+2. Use <code> for code snippets
+3. Use <ul> or <ol> for lists
+4. Use <strong> for emphasis"""
+
+            # Ollama bağlantısını kontrol et
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:  # Timeout'u 60 saniyeye çıkar
+                    # Önce bağlantıyı test et
+                    try:
+                        response = await client.get(f"{self.ollama_url}/api/tags")
+                        if response.status_code != 200:
+                            raise Exception(f"Ollama API error: {response.status_code}")
+                    except httpx.ConnectError:
+                        print("Ollama connection error - trying to restart service...")
+                        # Ollama servisini yeniden başlatmayı dene
+                        try:
+                            import subprocess
+                            subprocess.Popen(["ollama", "serve"], 
+                                          stdout=subprocess.PIPE, 
+                                          stderr=subprocess.PIPE)
+                            # Servisin başlaması için bekle
+                            await asyncio.sleep(2)
+                            # Tekrar bağlanmayı dene
+                            response = await client.get(f"{self.ollama_url}/api/tags")
+                            if response.status_code != 200:
+                                raise Exception(f"Ollama API error: {response.status_code}")
+                        except Exception as e:
+                            raise Exception(f"Failed to restart Ollama service: {str(e)}")
+                    
+                    # Stream yanıtı al
+                    async with client.stream(
+                        "POST",
+                        f"{self.ollama_url}/api/generate",
+                        json={
+                            "model": "mistral",
+                            "prompt": simplified_prompt,
+                            "stream": True,
+                            "options": {
+                                "num_ctx": 2048,
+                                "temperature": 0.5,
+                                "num_predict": 256,
+                                "num_thread": 8,
+                                "num_gpu": 1,
+                                "timeout": 60000  # 60 saniye timeout
+                            }
+                        }
+                    ) as response:
+                        if response.status_code != 200:
+                            raise Exception(f"Ollama generate error: {response.status_code}")
+                            
+                        async for line in response.aiter_lines():
+                            if line:
+                                try:
+                                    data = json.loads(line)
+                                    if "response" in data:
+                                        yield f"data: {data['response']}\n\n"
+                                    elif "error" in data:
+                                        yield f"data: Error: {data['error']}\n\n"
+                                except json.JSONDecodeError:
+                                    continue
+                                    
+            except httpx.TimeoutException:
+                print("Ollama timeout error - retrying...")
+                # Bir kez daha dene
+                try:
+                    async with httpx.AsyncClient(timeout=60.0) as client:
+                        async with client.stream(
+                            "POST",
+                            f"{self.ollama_url}/api/generate",
+                            json={
+                                "model": "mistral",
+                                "prompt": simplified_prompt,
+                                "stream": True,
+                                "options": {
+                                    "num_ctx": 2048,
+                                    "temperature": 0.5,
+                                    "num_predict": 256,
+                                    "num_thread": 8,
+                                    "num_gpu": 1,
+                                    "timeout": 60000
+                                }
+                            }
+                        ) as response:
+                            async for line in response.aiter_lines():
+                                if line:
+                                    try:
+                                        data = json.loads(line)
+                                        if "response" in data:
+                                            yield f"data: {data['response']}\n\n"
+                                        elif "error" in data:
+                                            yield f"data: Error: {data['error']}\n\n"
+                                    except json.JSONDecodeError:
+                                        continue
+                except Exception as e:
+                    yield "data: Error: Ollama yanıt vermedi. Lütfen tekrar deneyin.\n\n"
+                    
+            except httpx.ConnectError:
+                yield "data: Error: Ollama servisine bağlanılamadı. Ollama servisinin çalıştığından emin olun.\n\n"
+            except Exception as e:
+                yield f"data: Error: Ollama bağlantı hatası: {str(e)}\n\n"
+                
         except Exception as e:
             print(f"Error in _query_ollama: {e}")
             yield f"data: Error: {str(e)}\n\n"
@@ -662,6 +752,20 @@ class ProjectAssistant:
 
             print(f"Processing query - Type: {query_type}, Repo: {repo_name}")
             print(f"Question: {question}")
+
+            # Basit metadata soruları için özel işleyici
+            metadata_questions = {
+                "projenin adı ne": "Ghost in the Code",
+                "what is the project name": "Ghost in the Code",
+                "proje adı": "Ghost in the Code",
+                "project name": "Ghost in the Code"
+            }
+            
+            if question.lower() in metadata_questions:
+                return StreamingResponse(
+                    self._query_ollama(f"""The project name is "{metadata_questions[question.lower()]}". It is a smart AI assistant that helps users explore and understand code through natural conversations."""),
+                    media_type='text/event-stream'
+                )
 
             try:
                 if query_type == "files" and files:
@@ -720,53 +824,58 @@ Please provide a clear and well-structured answer:
                         return f"Repository '{repo_name}' not found in collections."
 
                     try:
+                        # README.md kontrolünü paralel yap
+                        readme_content = None
+                        if query_type == "repo":
+                            repo = next((r for r in self.config["repositories"] if r["name"].lower() == repo_name), None)
+                            if repo:
+                                readme_path = Path(repo["local_path"]) / "README.md"
+                                if readme_path.exists():
+                                    try:
+                                        with open(readme_path, 'r', encoding='utf-8') as f:
+                                            readme_content = f.read()
+                                    except:
+                                        pass
+
                         # Repo içeriğinden ilgili kısımları al
                         results = collection.query(
                             query_texts=[question],
-                            n_results=5,
+                            n_results=3,  # Sonuç sayısını azalt
                             include=["documents", "metadatas"]
                         )
 
                         if not results['documents'][0]:
                             return "Bu repo için ilgili bir bilgi bulunamadı."
 
+                        # Context'i hızlıca hazırla
                         context_parts = []
-                        for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
+                        
+                        # README.md varsa ekle
+                        if readme_content:
+                            context_parts.append(f"[README.md]\n{readme_content}")
+
+                        # Diğer dökümanları ekle (ilk 3 sonuç)
+                        for doc, metadata in zip(results['documents'][0][:3], results['metadatas'][0][:3]):
                             context_parts.append(f"[{metadata['file']}]\n{doc}")
 
                         context_text = "\n---\n".join(context_parts)
 
                         print(f"Found relevant content, generating response...")
 
+                        # Prompt'u optimize et
+                        base_prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
+
+{context_text}
+
+Question: {question}
+
+Please provide a clear and well-structured answer:"""
+
                         # Prompt'u hazırla
                         if query_type == "repo":
-                            prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
-
-{context_text}
-
-Question: {question}
-
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. Use blockquotes (>) for important notes or warnings
-6. When referencing files, use this format: `📄 path/to/file.ext`"""
+                            prompt = base_prompt
                         else:
-                            prompt = f"""You are analyzing all repositories. Here are some relevant parts:
-
-{context_text}
-
-Question: {question}
-
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. Use blockquotes (>) for important notes or warnings
-6. When referencing files, use this format: `📄 path/to/file.ext`"""
+                            prompt = base_prompt.replace(f'repository "{repo_name}"', "all repositories")
 
                         return StreamingResponse(
                             self._query_ollama(prompt),
@@ -1709,6 +1818,20 @@ class LLMAssistant:
             print(f"Processing query - Type: {query_type}, Repo: {repo_name}")
             print(f"Question: {question}")
 
+            # Basit metadata soruları için özel işleyici
+            metadata_questions = {
+                "projenin adı ne": "Ghost in the Code",
+                "what is the project name": "Ghost in the Code",
+                "proje adı": "Ghost in the Code",
+                "project name": "Ghost in the Code"
+            }
+            
+            if question.lower() in metadata_questions:
+                return StreamingResponse(
+                    self._query_ollama(f"""The project name is "{metadata_questions[question.lower()]}". It is a smart AI assistant that helps users explore and understand code through natural conversations."""),
+                    media_type='text/event-stream'
+                )
+
             try:
                 if query_type == "files" and files:
                     # Dosya içeriklerini doğrudan oku
@@ -1766,53 +1889,58 @@ Please provide a clear and well-structured answer:
                         return f"Repository '{repo_name}' not found in collections."
 
                     try:
+                        # README.md kontrolünü paralel yap
+                        readme_content = None
+                        if query_type == "repo":
+                            repo = next((r for r in self.config["repositories"] if r["name"].lower() == repo_name), None)
+                            if repo:
+                                readme_path = Path(repo["local_path"]) / "README.md"
+                                if readme_path.exists():
+                                    try:
+                                        with open(readme_path, 'r', encoding='utf-8') as f:
+                                            readme_content = f.read()
+                                    except:
+                                        pass
+
                         # Repo içeriğinden ilgili kısımları al
                         results = collection.query(
                             query_texts=[question],
-                            n_results=5,
+                            n_results=3,  # Sonuç sayısını azalt
                             include=["documents", "metadatas"]
                         )
 
                         if not results['documents'][0]:
                             return "Bu repo için ilgili bir bilgi bulunamadı."
 
+                        # Context'i hızlıca hazırla
                         context_parts = []
-                        for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
+                        
+                        # README.md varsa ekle
+                        if readme_content:
+                            context_parts.append(f"[README.md]\n{readme_content}")
+
+                        # Diğer dökümanları ekle (ilk 3 sonuç)
+                        for doc, metadata in zip(results['documents'][0][:3], results['metadatas'][0][:3]):
                             context_parts.append(f"[{metadata['file']}]\n{doc}")
 
                         context_text = "\n---\n".join(context_parts)
 
                         print(f"Found relevant content, generating response...")
 
+                        # Prompt'u optimize et
+                        base_prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
+
+{context_text}
+
+Question: {question}
+
+Please provide a clear and well-structured answer:"""
+
                         # Prompt'u hazırla
                         if query_type == "repo":
-                            prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
-
-{context_text}
-
-Question: {question}
-
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. Use blockquotes (>) for important notes or warnings
-6. When referencing files, use this format: `📄 path/to/file.ext`"""
+                            prompt = base_prompt
                         else:
-                            prompt = f"""You are analyzing all repositories. Here are some relevant parts:
-
-{context_text}
-
-Question: {question}
-
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. Use blockquotes (>) for important notes or warnings
-6. When referencing files, use this format: `📄 path/to/file.ext`"""
+                            prompt = base_prompt.replace(f'repository "{repo_name}"', "all repositories")
 
                         return StreamingResponse(
                             self._query_ollama(prompt),

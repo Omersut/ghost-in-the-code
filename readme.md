@@ -29,6 +29,7 @@ A smart AI assistant that helps you explore and understand code through natural 
 - Python 3.8+
 - Git
 - [Ollama](https://ollama.ai/) with Mistral model
+- On Windows: [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) for installing packages like chroma-hnswlib
 
 ### Setup
 
@@ -36,6 +37,7 @@ A smart AI assistant that helps you explore and understand code through natural 
 ```bash
 git clone https://github.com/Omersut/ghost-in-the-code.git
 cd ghost-in-the-code
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
@@ -73,6 +75,15 @@ You can also add repositories through the Admin panel:
 - LLM: Ollama (Mistral)
 - Frontend: JavaScript, Modern CSS
 
+## 📝 License
+
+MIT License - see [LICENSE](LICENSE) file
+
+## 🔗 Links
+
+- [GitHub Repository](https://github.com/Omersut/ghost-in-the-code)
+- [Report Issues](https://github.com/Omersut/ghost-in-the-code/issues)
+
 ## ❓ Troubleshooting
 
 1. **Ollama Issues**
@@ -83,12 +94,3 @@ You can also add repositories through the Admin panel:
    - Make sure the local path exists
    - Check folder permissions
    - Ensure the path is correctly formatted
-
-## 📝 License
-
-MIT License - see [LICENSE](LICENSE) file
-
-## 🔗 Links
-
-- [GitHub Repository](https://github.com/Omersut/ghost-in-the-code)
-- [Report Issues](https://github.com/Omersut/ghost-in-the-code/issues)
