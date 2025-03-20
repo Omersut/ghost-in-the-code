@@ -3,3 +3,6 @@ repositories:
 - is_processed: true
   local_path: C:/Projects/Personal/ghost-in-the-code
   name: ghost-in-the-code
+- is_processed: true
+  local_path: C:/Projects/Personal/otfil
+  name: otfil

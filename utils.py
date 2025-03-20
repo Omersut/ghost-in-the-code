@@ -625,7 +625,7 @@ class ProjectAssistant:
 
             # Ollama bağlantısını kontrol et
             try:
-                async with httpx.AsyncClient(timeout=30.0) as client:  # Timeout'u 30 saniyeye düşür
+                async with httpx.AsyncClient(timeout=45.0) as client:  # Timeout'u 30 saniyeye düşür
                     # Önce bağlantıyı test et
                     try:
                         response = await client.get(f"{self.ollama_url}/api/tags")
@@ -658,11 +658,11 @@ class ProjectAssistant:
                             "stream": True,
                             "options": {
                                 "num_ctx": 1024,  # Context boyutunu azalt
-                                "temperature": 0.7,  # Daha hızlı yanıt için artır
+                                "temperature": 0.8,  # Daha hızlı yanıt için artır
                                 "num_predict": 128,  # Tahmin sayısını azalt
                                 "num_thread": 4,  # Thread sayısını azalt
                                 "num_gpu": 1,
-                                "timeout": 30000  # 30 saniye timeout
+                                "timeout": 45000  # 30 saniye timeout
                             }
                         }
                     ) as response:
