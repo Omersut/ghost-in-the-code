@@ -1842,7 +1842,7 @@
 
         // Update askQuestion function to use new streaming
         async function askQuestion() {
-            if (isProcessing || !questionInput.value.trim()) return;
+            if (!questionInput.value.trim()) return; // Remove isProcessing check to allow multiple questions
 
             if (!currentRepo) {
                 appendMessage('assistant', '> Please select a repository first.');
@@ -1856,9 +1856,6 @@
 
             const question = questionInput.value.trim();
             questionInput.value = '';
-            isProcessing = true;
-            askButton.disabled = true;
-
             appendMessage('user', question);
             const assistantMessage = appendMessage('assistant', '', true);
 
@@ -1883,8 +1880,6 @@
                 console.error('Error:', error);
                 assistantMessage.querySelector('.message-bubble').innerHTML = md.render('> Error: Failed to process your question. Please try again.');
             } finally {
-                isProcessing = false;
-                askButton.disabled = false;
                 questionInput.focus();
             }
         }
