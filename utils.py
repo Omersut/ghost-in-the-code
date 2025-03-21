@@ -242,82 +242,46 @@ class ProjectAssistant:
             print(f"Processing repo: {repo_name} at {repo_path}")
             
             def update_progress(message: str):
-                print(message)  # Console'a yazdır
-                # Progress event'i gönder
+                print(message)
                 if hasattr(self, 'progress_callback'):
                     self.progress_callback(message)
+
+            # Delete existing collection if it exists
+            try:
+                normalized_name = self._normalize_collection_name(repo_name)
+                collection_name = f"{normalized_name}_collection"
+                print(f"Checking for existing collection: {collection_name}")
+                self.client.delete_collection(collection_name)
+                print("Error deleting existing collection: Collection does not exist.")
+            except Exception as e:
+                print(f"Error deleting existing collection: {e}")
+
+            # Create new collection
+            collection = self.client.create_collection(
+                name=collection_name,
+                embedding_function=self.embedding_fn
+            )
 
             # İşlenmeyecek klasörler
             IGNORED_DIRS = {
                 # Build ve paket klasörleri
-                'node_modules',
-                'bin',
-                'obj',
-                'dist',
-                'build',
-                'target',
-                'packages',
-                
+                'node_modules', 'bin', 'obj', 'dist', 'build', 'target', 'packages',
                 # Versiyon kontrol ve IDE
-                '.git',
-                '.vs',
-                '.idea',
-                '.vscode',
-                '__pycache__',
-                
+                '.git', '.vs', '.idea', '.vscode', '__pycache__',
                 # Ortam klasörleri
-                'venv',
-                'env',
-                'virtualenv',
-                '.env',
-                
+                'venv', 'env', 'virtualenv', '.env',
                 # Asset klasörleri
-                'assets',
-                'images',
-                'fonts',
-                'wwwroot',
-                'static',
-                'media',
-                
-                # CI/CD ve deployment
-                'jenkins_home',
-                '.jenkins',
-                'docker',
-                'kubernetes',
-                'k8s',
-                'helm',
-                'terraform',
-                'ansible',
-                
+                'assets', 'images', 'fonts', 'wwwroot', 'static', 'media',
                 # Test ve dökümantasyon
-                'test',
-                'tests',
-                'examples',
-                'samples',
-                
+                'test', 'tests', 'examples', 'samples',
                 # Geçici ve cache
-                'temp',
-                'tmp',
-                'cache',
-                'logs',
-                '.sonarqube',
-                'coverage',
-                '.nyc_output',
-                
-                # Build output
-                'Debug',
-                'Release',
-                'x64',
-                'x86',
-                'net4*',
-                'netcoreapp*',
-                'publish'
+                'temp', 'tmp', 'cache', 'logs'
             }
 
             # İşlenmeyecek dosya uzantıları
             IGNORED_EXTENSIONS = {
                 # Binary dosyalar
-                '.exe', '.dll', '.pdb', '.so', '.dylib',
+                '.exe', '.dll', '.so', '.dylib',
                 '.pyc', '.pyo', '.pyd',
                 
                 # Media dosyaları
@@ -366,28 +330,96 @@ class ProjectAssistant:
                 '.vscode'
             }
 
-            # Path kontrolü
-            if not repo_path.exists():
-                raise Exception(f"Repository path does not exist: {repo_path}")
-            
-            # Koleksiyon adını normalize et
-            normalized_name = repo_name.lower()
-            collection_name = f"{normalized_name}_collection"
-            print(f"Creating collection: {collection_name}")
+            # First, analyze project structure and README
+            project_info = {
+                "name": repo_name,
+                "path": str(repo_path),
+                "readme": "",
+                "description": "",
+                "main_purpose": "",
+                "technologies": [],
+            }
 
-            # Varsa eski koleksiyonu sil
             try:
-                self.client.delete_collection(collection_name)
-            except:
-                pass
+                # Read and analyze README
+                readme_paths = ["README.md", "README", "Readme.md", "readme.md"]
+                for readme_path in readme_paths:
+                    try:
+                        with open(repo_path / readme_path, 'r', encoding='utf-8') as f:
+                            project_info["readme"] = f.read()
+                            break
+                    except Exception as e:
+                        print(f"Error reading README {readme_path}: {e}")
+                        continue
+            except Exception as e:
+                print(f"Error processing README files: {e}")
 
-            # Yeni koleksiyon oluştur
-            collection = self.client.create_collection(
-                name=collection_name,
-                embedding_function=self.embedding_fn
+            # Detect technologies based on file extensions
+            tech_mapping = {
+                '.py': 'Python',
+                '.js': 'JavaScript',
+                '.ts': 'TypeScript',
+                '.jsx': 'React',
+                '.tsx': 'React/TypeScript',
+                '.vue': 'Vue.js',
+                '.java': 'Java',
+                '.cs': 'C#',
+                '.go': 'Go',
+                '.rb': 'Ruby',
+                '.php': 'PHP',
+                '.rs': 'Rust',
+                '.cpp': 'C++',
+                '.c': 'C',
+                '.scala': 'Scala',
+                '.kt': 'Kotlin',
+                '.swift': 'Swift',
+                '.m': 'Objective-C',
+                '.html': 'HTML',
+                '.css': 'CSS',
+                '.scss': 'SCSS',
+                '.less': 'Less',
+                '.sql': 'SQL',
+                'Dockerfile': 'Docker',
+                'docker-compose.yml': 'Docker',
+                'package.json': 'Node.js',
+                'requirements.txt': 'Python',
+                'pom.xml': 'Java',
+                'build.gradle': 'Java',
+                '.csproj': 'C#',
+                'go.mod': 'Go'
+            }
+
+            technologies = set()
+            for ext, tech in tech_mapping.items():
+                if ext.startswith('.'):
+                    if list(repo_path.rglob(f"*{ext}")):
+                        technologies.add(tech)
+                else:
+                    if list(repo_path.rglob(ext)):
+                        technologies.add(tech)
+
+            project_info["technologies"] = list(technologies)
+
+            # Add project overview as a special document with simple metadata
+            overview_doc = f"""Project Name: {project_info['name']}
+README:
+{project_info['readme']}
+
+Technologies:
+{', '.join(project_info['technologies'])}
+"""
+            
+            collection.add(
+                documents=[overview_doc],
+                metadatas=[{
+                    "type": "project_overview",
+                    "name": project_info["name"],
+                    "path": project_info["path"]
+                }],
+                ids=[f"{repo_name}_overview"]
             )
-            self.collections[normalized_name] = collection
 
+            # Process code files
             documents = []
             metadatas = []
             ids = []
@@ -413,62 +445,73 @@ class ProjectAssistant:
             
             for ext in extensions:
                 for file in repo_path.rglob(f"*{ext}"):
-                    # Klasör kontrolü
-                    if any(ignored in file.parts for ignored in IGNORED_DIRS):
-                        continue
-                        
-                    # Uzantı kontrolü
-                    if any(file.name.endswith(ignored) for ignored in IGNORED_EXTENSIONS):
-                        continue
-
-                    total_files += 1
-                    
-                    if not any(p.startswith('.') for p in file.parts):
-                        try:
-                            with open(file, 'r', encoding='utf-8') as f:
-                                content = f.read()
-                                if content.strip():
-                                    chunks = self._split_content(content)
-                                    update_progress(f"Processing {file.relative_to(repo_path)}")
-                                    processed_files += 1
-                                    for i, chunk in enumerate(chunks):
-                                        # Benzersiz ID oluştur - tam dosya yolunu kullan
-                                        file_path = str(file.relative_to(repo_path)).replace('\\', '/').replace('/', '_')
-                                        ids.append(f"{repo_name}_{file_path}_{i}")
-                                        documents.append(chunk)
-                                        metadatas.append({
-                                            "file": str(file.relative_to(repo_path)),
-                                            "part": i + 1,
-                                            "total_parts": len(chunks)
-                                        })
-                                        doc_id += 1
-                        except Exception as e:
-                            print(f"Error processing {file}: {str(e)}")
-                            print(f"File encoding: {self.get_file_encoding(file)}")
-                            skipped_files += 1
+                    try:
+                        # Klasör kontrolü
+                        if any(ignored in file.parts for ignored in IGNORED_DIRS):
+                            continue
+                            
+                        # Uzantı kontrolü
+                        if any(file.name.endswith(ignored) for ignored in IGNORED_EXTENSIONS):
                             continue
 
+                        total_files += 1
+                        
+                        if not any(p.startswith('.') for p in file.parts):
+                            try:
+                                with open(file, 'r', encoding='utf-8') as f:
+                                    content = f.read()
+                                    if content.strip():
+                                        chunks = self._split_content(content)
+                                        update_progress(f"Processing {file.relative_to(repo_path)}")
+                                        processed_files += 1
+                                        for i, chunk in enumerate(chunks):
+                                            # Windows yolları için normalize et
+                                            file_path = str(file.relative_to(repo_path)).replace('\\', '/').replace('/', '_')
+                                            ids.append(f"{repo_name}_{file_path}_{i}")
+                                            documents.append(chunk)
+                                            metadatas.append({
+                                                "file": str(file.relative_to(repo_path)),
+                                                "part": i + 1,
+                                                "total_parts": len(chunks)
+                                            })
+                                            doc_id += 1
+                            except Exception as e:
+                                print(f"Error processing file {file}: {e}")
+                                skipped_files += 1
+                                continue
+                    except Exception as e:
+                        print(f"Error accessing file: {e}")
+                        skipped_files += 1
+                        continue
+
+            # Add documents in batches
             if documents:
-                # Belgeleri daha küçük gruplar halinde ekle
                 batch_size = 100
-                total_batches = (len(documents) + batch_size - 1) // batch_size
                 for i in range(0, len(documents), batch_size):
                     end = min(i + batch_size, len(documents))
-                    update_progress(f"Adding batch {i//batch_size + 1} of {total_batches}")
-                collection.add(
-                        documents=documents[i:end],
-                        metadatas=metadatas[i:end],
-                        ids=ids[i:end]
-                    )
-            
-            print(f"Added repository: {repo_name} with {len(documents)} chunks")
-            
-            # Update config
-            for repo in self.config["repositories"]:
-                if repo["name"] == repo_name:
-                    repo["is_processed"] = True
-                    break
-            self.save_config()
+                    try:
+                        collection.add(
+                            documents=documents[i:end],
+                            metadatas=metadatas[i:end],
+                            ids=ids[i:end]
+                        )
+                    except Exception as e:
+                        print(f"Error adding batch {i}-{end}: {e}")
+                        continue
+
+            self.collections[normalized_name] = collection
+
+            # Update config with simple metadata
+            try:
+                for repo in self.config["repositories"]:
+                    if repo["name"] == repo_name:
+                        repo["is_processed"] = True
+                        repo["technologies"] = list(technologies)
+                        break
+                self.save_config()
+            except Exception as e:
+                print(f"Error updating config: {e}")
+                raise
             
             print(f"\nProcessing Summary:")
             print(f"Total files found: {total_files}")
@@ -480,6 +523,8 @@ class ProjectAssistant:
             print(f"Error processing repository {repo_name}: {e}")
             # Hata durumunda koleksiyonu temizle
             try:
+                normalized_name = self._normalize_collection_name(repo_name)
+                collection_name = f"{normalized_name}_collection"
                 if repo_name in self.collections:
                     self.client.delete_collection(collection_name)
                     del self.collections[repo_name]
@@ -575,55 +620,32 @@ class ProjectAssistant:
                     f"{self.ollama_url}/api/generate",
                     json={
                         "model": "mistral",
-                        "prompt": f"""You are a code analysis assistant. Your task is to answer questions STRICTLY based on the provided code context.
+                        "prompt": f"""You are a code analysis assistant. Your task is to answer questions about the code repository being analyzed.
 
 IMPORTANT RULES:
-1. ONLY use information from the provided code snippets/context
-2. DO NOT make assumptions about code you cannot see
-3. DO NOT reference external libraries, documentation, or knowledge
-4. If you cannot answer based on the provided context, clearly state that
-5. If you need to see more code to give a complete answer, say so
-6. DO NOT make up or imagine code that isn't shown
-7. When referencing code, quote the exact lines from the context
+1. Start by clearly stating the repository name and its main purpose
+2. Keep responses focused and relevant to the question
+3. Use only information from the provided code context
+4. Structure responses with clear sections
+5. For project overview questions:
+   - State the project name first
+   - Describe the main purpose
+   - List key features
+   - Mention technologies used
+6. Use proper formatting for clarity
 
 CONTEXT:
 {prompt}
 
-Remember: Stay focused on the actual code shown above. If you're unsure or need more context, it's better to say so than to make assumptions.
-
-Format your response using EXACTLY these HTML rules:
-
-1. Basic Structure:
-   - Start with overview in <p> tags
-   - Use <h2> for main sections (NEVER use h1)
-   - Use <h3> for subsections
-   - Each paragraph in separate <p> tags
-
-2. Code Formatting:
-   For code blocks use EXACTLY this format:
-   <pre><code class='language-[language]'>
-   your code here
-   </code></pre>
-
-   For inline code use: <code>code here</code>
-
-3. List Formatting:
-   For unordered lists use EXACTLY:
-   <ul>
-     <li>First item</li>
-     <li>Second item</li>
-   </ul>
-
-   For ordered lists use EXACTLY:
-   <ol>
-     <li>First item</li>
-     <li>Second item</li>
-   </ol>
-
-4. Other Elements:
-   - Use <strong> for emphasis
-   - Use <blockquote> for important notes
-   - Add line breaks between sections""",
+Format your response using these HTML rules:
+1. Use <h2> for section titles (never use h1)
+2. Use <p> for paragraphs
+3. Use <ul> and <li> for lists
+4. Use <code> for inline code
+5. Use <pre><code> for code blocks
+6. Use <blockquote> for important notes
+7. Keep formatting clean and minimal
+8. Do not use any decorative characters like = or -""",
                         "stream": True
                     }
                 ) as response:
@@ -664,6 +686,7 @@ Format your response using EXACTLY these HTML rules:
 
                     repo_path = Path(repo["local_path"])
                     file_contents = []
+                    project_info = repo.get("project_info", {})
 
                     for file_path in files:
                         try:
@@ -684,27 +707,31 @@ Format your response using EXACTLY these HTML rules:
                     context_text = "\n\n---\n\n".join(file_contents)
                     
                     # Prompt'u hazırla
-                    prompt = f"""You are analyzing these specific files from repository "{repo_name}":
+                    prompt = f"""You are analyzing files from the project "{repo_name}".
 
+Project Overview:
+{json.dumps(project_info, indent=2)}
+
+Files to analyze:
 {context_text}
 
 Question: {question}
 
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. For configuration files, explain key settings in a structured way
-6. Use blockquotes (>) for important notes or warnings
-7. When referencing files, use this format: `📄 path/to/file.ext`"""
+Please provide a clear and well-structured answer in Turkish:
+1. Start with a brief overview of how these files fit into the project
+2. Break down your explanation into logical sections
+3. Use bullet points or numbered lists for features
+4. When showing code examples, use proper code blocks
+5. Use blockquotes for important notes
+6. When referencing files, use this format: `📄 path/to/file.ext`
+7. Make sure your response aligns with the project's actual purpose and structure"""
 
                     return StreamingResponse(
                         self._query_ollama(prompt),
                         media_type='text/event-stream'
                     )
 
-                else:  # repo veya all için mevcut kodu kullan
+                else:  # repo veya all için
                     collection = self.collections.get(repo_name)
                     
                     if not collection:
@@ -712,7 +739,13 @@ Please provide a clear and well-structured answer:
                         return f"Repository '{repo_name}' not found in collections."
 
                     try:
-                        # Repo içeriğinden ilgili kısımları al
+                        # Önce proje genel bilgilerini al
+                        project_info = collection.get(
+                            where={"type": "project_overview"},
+                            include=["documents"]
+                        )
+
+                        # Sonra sorguya göre ilgili içeriği al
                         results = collection.query(
                             query_texts=[question],
                             n_results=5,
@@ -724,7 +757,8 @@ Please provide a clear and well-structured answer:
 
                         context_parts = []
                         for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
-                            context_parts.append(f"[{metadata['file']}]\n{doc}")
+                            if metadata.get("type") != "project_overview":  # Overview'i tekrar ekleme
+                                context_parts.append(f"[{metadata.get('file', 'unknown')}]\n{doc}")
 
                         context_text = "\n---\n".join(context_parts)
 
@@ -732,32 +766,37 @@ Please provide a clear and well-structured answer:
 
                         # Prompt'u hazırla
                         if query_type == "repo":
-                            prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
+                            prompt = f"""You are analyzing the repository "{repo_name}". Here is the project overview:
+
+{project_info['documents'][0] if project_info['documents'] else 'No overview available'}
+
+And here are some relevant code parts:
 
 {context_text}
 
 Question: {question}
 
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. Use blockquotes (>) for important notes or warnings
-6. When referencing files, use this format: `📄 path/to/file.ext`"""
+Please provide a clear and well-structured answer in Turkish:
+1. Make sure your response aligns with the project's actual purpose and structure
+2. Break down your explanation into logical sections
+3. Use bullet points or numbered lists for features
+4. When showing code examples, use proper code blocks
+5. Use blockquotes for important notes
+6. When referencing files, use this format: `📄 path/to/file.ext`
+7. Base your response ONLY on the actual project information provided"""
                         else:
-                            prompt = f"""You are analyzing all repositories. Here are some relevant parts:
+                            prompt = f"""You are analyzing multiple repositories. Here is the relevant content:
 
 {context_text}
 
 Question: {question}
 
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. Use blockquotes (>) for important notes or warnings
+Please provide a clear and well-structured answer in Turkish:
+1. Start with mentioning which repositories you're referencing
+2. Break down your explanation into logical sections
+3. Use bullet points or numbered lists for features
+4. When showing code examples, use proper code blocks
+5. Use blockquotes for important notes
 6. When referencing files, use this format: `📄 path/to/file.ext`"""
 
                         return StreamingResponse(
@@ -1405,7 +1444,7 @@ Question: {question}"""
                         "selected": node["path"] in (self.current_context["files"] or [])
                     })
                 elif node["type"] == "folder" and "children" in node:
-                    for child in node["children"]:
+                    for child in node["children"].values():
                         extract_files(child)
                         
             extract_files(structure)
@@ -1708,6 +1747,7 @@ class LLMAssistant:
 
                     repo_path = Path(repo["local_path"])
                     file_contents = []
+                    project_info = repo.get("project_info", {})
 
                     for file_path in files:
                         try:
@@ -1728,27 +1768,31 @@ class LLMAssistant:
                     context_text = "\n\n---\n\n".join(file_contents)
                     
                     # Prompt'u hazırla
-                    prompt = f"""You are analyzing these specific files from repository "{repo_name}":
+                    prompt = f"""You are analyzing files from the project "{repo_name}".
 
+Project Overview:
+{json.dumps(project_info, indent=2)}
+
+Files to analyze:
 {context_text}
 
 Question: {question}
 
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. For configuration files, explain key settings in a structured way
-6. Use blockquotes (>) for important notes or warnings
-7. When referencing files, use this format: `📄 path/to/file.ext`"""
+Please provide a clear and well-structured answer in Turkish:
+1. Start with a brief overview of how these files fit into the project
+2. Break down your explanation into logical sections
+3. Use bullet points or numbered lists for features
+4. When showing code examples, use proper code blocks
+5. Use blockquotes for important notes
+6. When referencing files, use this format: `📄 path/to/file.ext`
+7. Make sure your response aligns with the project's actual purpose and structure"""
 
                     return StreamingResponse(
                         self._query_ollama(prompt),
                         media_type='text/event-stream'
                     )
 
-                else:  # repo veya all için mevcut kodu kullan
+                else:  # repo veya all için
                     collection = self.collections.get(repo_name)
                     
                     if not collection:
@@ -1756,7 +1800,13 @@ Please provide a clear and well-structured answer:
                         return f"Repository '{repo_name}' not found in collections."
 
                     try:
-                        # Repo içeriğinden ilgili kısımları al
+                        # Önce proje genel bilgilerini al
+                        project_info = collection.get(
+                            where={"type": "project_overview"},
+                            include=["documents"]
+                        )
+
+                        # Sonra sorguya göre ilgili içeriği al
                         results = collection.query(
                             query_texts=[question],
                             n_results=5,
@@ -1768,7 +1818,8 @@ Please provide a clear and well-structured answer:
 
                         context_parts = []
                         for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
-                            context_parts.append(f"[{metadata['file']}]\n{doc}")
+                            if metadata.get("type") != "project_overview":  # Overview'i tekrar ekleme
+                                context_parts.append(f"[{metadata.get('file', 'unknown')}]\n{doc}")
 
                         context_text = "\n---\n".join(context_parts)
 
@@ -1776,32 +1827,37 @@ Please provide a clear and well-structured answer:
 
                         # Prompt'u hazırla
                         if query_type == "repo":
-                            prompt = f"""You are analyzing the repository "{repo_name}". Here are some relevant parts:
+                            prompt = f"""You are analyzing the repository "{repo_name}". Here is the project overview:
+
+{project_info['documents'][0] if project_info['documents'] else 'No overview available'}
+
+And here are some relevant code parts:
 
 {context_text}
 
 Question: {question}
 
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. Use blockquotes (>) for important notes or warnings
-6. When referencing files, use this format: `📄 path/to/file.ext`"""
+Please provide a clear and well-structured answer in Turkish:
+1. Make sure your response aligns with the project's actual purpose and structure
+2. Break down your explanation into logical sections
+3. Use bullet points or numbered lists for features
+4. When showing code examples, use proper code blocks
+5. Use blockquotes for important notes
+6. When referencing files, use this format: `📄 path/to/file.ext`
+7. Base your response ONLY on the actual project information provided"""
                         else:
-                            prompt = f"""You are analyzing all repositories. Here are some relevant parts:
+                            prompt = f"""You are analyzing multiple repositories. Here is the relevant content:
 
 {context_text}
 
 Question: {question}
 
-Please provide a clear and well-structured answer:
-1. Start with a brief overview
-2. Break down your explanation into logical sections using markdown headings
-3. Use bullet points or numbered lists for steps or features
-4. When showing code examples, use proper code blocks with language specification
-5. Use blockquotes (>) for important notes or warnings
+Please provide a clear and well-structured answer in Turkish:
+1. Start with mentioning which repositories you're referencing
+2. Break down your explanation into logical sections
+3. Use bullet points or numbered lists for features
+4. When showing code examples, use proper code blocks
+5. Use blockquotes for important notes
 6. When referencing files, use this format: `📄 path/to/file.ext`"""
 
                         return StreamingResponse(

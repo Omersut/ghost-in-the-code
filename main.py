@@ -526,26 +526,6 @@ async def add_local_repo(request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/admin/repos/action")
-async def repo_action(request: Request):
-    try:
-        data = await request.json()
-        repo_id = data.get("repo_id")
-        action = data.get("action")
-        
-        if action == "process":
-            # Repo'yu işle
-            await project_assistant.process_repo(repo_id)
-            return {"success": True, "message": "Repository processed successfully"}
-            
-        elif action == "delete":
-            # Repo'yu sil (sadece yapılandırmadan)
-            project_assistant.remove_repo(repo_id)
-            return {"success": True, "message": "Repository removed successfully"}
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/api/repo/{repo_id:path}/commit/{commit_hash}")
 async def get_commit_details(repo_id: str, commit_hash: str):
     try:

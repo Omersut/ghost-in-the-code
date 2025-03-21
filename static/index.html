@@ -1271,6 +1271,69 @@
         .admin-btn:hover {
             background: var(--surface-lighter);
         }
+
+        /* Add these styles to improve formatting */
+        .response-heading {
+            margin: 1.5rem 0 1rem 0;
+            line-height: 1.4;
+        }
+        
+        .response-list {
+            margin: 1rem 0;
+            padding-left: 2rem;
+        }
+        
+        .response-list li {
+            margin: 0.5rem 0;
+            line-height: 1.5;
+        }
+        
+        .code-block-wrapper {
+            margin: 1.5rem 0;
+            background: #f8f9fa;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .code-block-wrapper pre {
+            margin: 0;
+            padding: 1rem;
+        }
+        
+        .inline-code {
+            background: #f8f9fa;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+        
+        .file-path-wrapper {
+            margin: 1rem 0;
+        }
+        
+        .file-path {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        
+        .note-wrapper {
+            margin: 1.5rem 0;
+        }
+        
+        .note {
+            padding: 1rem;
+            background: #fff8dc;
+            border-left: 4px solid #ffd700;
+            border-radius: 4px;
+        }
+        
+        p {
+            margin: 1rem 0;
+            line-height: 1.6;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
@@ -1976,38 +2039,62 @@
             // First, handle HTML tags that might be in the response
             text = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
             
-            // Handle headers with proper spacing
-            text = text.replace(/^(#{1,6})\s*(.+)$/gm, (match, hashes, content) => {
-                const level = hashes.length;
-                return `<h${level} class="response-header">${content}</h${level}><br>`;
-            });
-
-            // Handle lists with proper indentation
-            text = text.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
-            text = text.replace(/(<li>.*?<\/li>(\n|$))+/g, '<ul>$&</ul><br>');
+            // Remove decorative characters
+            text = text.replace(/={3,}/g, ''); // Remove 3 or more = characters
+            text = text.replace(/-{3,}/g, ''); // Remove 3 or more - characters
             
-            // Format code blocks with proper spacing and syntax highlighting
-            text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-                return `<br><pre><code class="language-${lang || 'plaintext'}">${code.trim()}</code></pre><br>`;
-            });
+            // Split text into paragraphs (double newlines)
+            let paragraphs = text.split(/\n\n+/);
+            
+            // Process each paragraph
+            text = paragraphs.map(para => {
+                // Skip if paragraph is empty
+                if (!para.trim()) return '';
+                
+                // Handle headers first - convert all headers to one level deeper (h1->h2, h2->h3, etc.)
+                if (para.match(/^#{1,6}\s+/)) {
+                    return para.replace(/^(#{1,6})\s+(.+)$/gm, (match, hashes, content) => {
+                        // Start at h2 (add 1 to level), max at h6
+                        const level = Math.min(hashes.length + 1, 6);
+                        return `<h${level}>${content.trim()}</h${level}>`;
+                    });
+                }
+                
+                // Handle lists with proper indentation and spacing
+                if (para.match(/^[-*]\s+/)) {
+                    para = para.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+                    return `<ul>${para}</ul>`;
+                }
+                
+                // Format code blocks with proper spacing and syntax highlighting
+                if (para.match(/^```/)) {
+                    return para.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+                        return `<pre><code class="language-${lang || 'plaintext'}">${code.trim()}</code></pre>`;
+                    });
+                }
+                
+                // Format blockquotes
+                if (para.match(/^>/)) {
+                    return para.replace(/^>\s*(.+)$/gm, '<blockquote>$1</blockquote>');
+                }
+                
+                // Clean up any remaining decorative characters
+                para = para.replace(/[=\-]{3,}/g, '');
+                
+                // Wrap regular paragraphs in <p> tags
+                return `<p>${para.trim()}</p>`;
+            }).join('\n\n');
             
             // Format inline code
             text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
             
             // Format file paths with proper spacing
-            text = text.replace(/📄\s([^\n]+)/g, '<br><span class="file-path">📄 $1</span><br>');
+            text = text.replace(/📄\s([^\n]+)/g, '<div class="file-path"><span>📄 $1</span></div>');
             
-            // Format blockquotes/notes with proper spacing
-            text = text.replace(/>\s([^\n]+)/g, '<br><div class="note">$1</div><br>');
+            // Final cleanup of any remaining decorative characters
+            text = text.replace(/[=\-]{3,}/g, '');
             
-            // Handle paragraphs and line breaks
-            text = text.replace(/\n\n+/g, '<br><br>');  // Multiple newlines to double break
-            text = text.replace(/\n/g, '<br>');         // Single newlines to break
-            
-            // Clean up any excessive breaks
-            text = text.replace(/<br\s*\/?>\s*(<br\s*\/?>)+/g, '<br><br>');
-            
-            return text;
+            return text.trim();
         }
     </script>
 </body>
