@@ -457,20 +457,20 @@
                 let eventSource;
                 // Progress listener'ı başlat
                 if (action === 'process') {
-                    eventSource = new EventSource(`/admin/repos/${repoId}/progress`);
-                    eventSource.onmessage = (event) => {
-                        updateProgress(event.data);
-                        // Timeout veya hata mesajlarını kontrol et
-                        if (event.data.includes('Timeout') || event.data.includes('Error')) {
-                            eventSource.close();
-                            hideLoading();
-                            alert(event.data);
-                        }
-                    };
-                    eventSource.onerror = () => {
-                        console.log('SSE Error - closing connection');
-                        eventSource.close();
-                    };
+                    // eventSource = new EventSource(`/admin/repos/${repoId}/progress`);
+                    // eventSource.onmessage = (event) => {
+                    //     updateProgress(event.data);
+                    //     // Timeout veya hata mesajlarını kontrol et
+                    //     if (event.data.includes('Timeout') || event.data.includes('Error')) {
+                    //         eventSource.close();
+                    //         hideLoading();
+                    //         alert(event.data);
+                    //     }
+                    // };
+                    // eventSource.onerror = () => {
+                    //     console.log('SSE Error - closing connection');
+                    //     eventSource.close();
+                    // };
                 }
                 
                 const response = await fetch('/admin/repos/action', {
@@ -484,7 +484,7 @@
                     eventSource.close();
                 }
                 hideLoading();
-                alert(result.message);
+                //alert(result.message);
                 loadRepos(); // Refresh list
                 
             } catch (error) {
