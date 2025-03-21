@@ -559,12 +559,12 @@
 
         .assistant-message {
             align-self: flex-start;
+            width: 85%;
         }
 
         .assistant-message .message-bubble {
             background: var(--surface-light);
             border-bottom-left-radius: 0.25rem;
-            width: 85%;
         }
 
         .message-meta {
@@ -717,6 +717,28 @@
         .send-button:hover {
             background: var(--primary-light);
             transform: translateY(-1px);
+        }
+
+        .stop-button {
+            padding: 0 1.5rem;
+            background: var(--danger);
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            font-size: 0.9375rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: none;
+        }
+
+        .stop-button:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .stop-button.visible {
+            display: block;
         }
 
         @keyframes slideIn {
@@ -944,29 +966,64 @@
         .typing-indicator {
             display: flex;
             align-items: center;
-            gap: 0.25rem;
-            padding: 1rem 1.25rem;
-            background: var(--surface-light);
-            border-radius: 1rem;
-            border-bottom-left-radius: 0.25rem;
-            max-width: 70%;
-            align-self: flex-start;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border-radius: 0.75rem;
+            width: fit-content;
         }
 
-        .typing-dot {
-            width: 0.5rem;
-            height: 0.5rem;
-            background: var(--text-secondary);
+        .typing-animation {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-animation span {
+            width: 6px;
+            height: 6px;
+            background: var(--primary);
             border-radius: 50%;
-            animation: typingBounce 1s infinite;
+            animation: typingBounce 1.4s ease-in-out infinite;
+            opacity: 0.3;
         }
 
-        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        .typing-animation span:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .typing-animation span:nth-child(2) {
+            animation-delay: 0.3s;
+        }
+
+        .typing-animation span:nth-child(3) {
+            animation-delay: 0.5s;
+        }
 
         @keyframes typingBounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-4px); }
+            0%, 100% {
+                transform: translateY(0) scale(1);
+                opacity: 0.3;
+            }
+            20% {
+                transform: translateY(-4px) scale(1.2);
+                opacity: 1;
+            }
+            28% {
+                transform: translateY(0) scale(1);
+                opacity: 0.5;
+            }
+            44% {
+                transform: translateY(-2px) scale(1.1);
+                opacity: 0.8;
+            }
+            59% {
+                transform: translateY(0) scale(1);
+                opacity: 0.5;
+            }
+            73% {
+                transform: translateY(-1px) scale(1.05);
+                opacity: 0.7;
+            }
         }
 
         .typing {
@@ -1319,6 +1376,9 @@
                         ></textarea>
                         <button id="askButton" class="send-button">
                             Ask
+                        </button>
+                        <button id="stopButton" class="stop-button">
+                            Stop
                         </button>
                     </div>
                 </div>
@@ -1718,6 +1778,10 @@
             }
         });
 
+        // Global variables for stream control
+        let currentController = null;
+        let currentStream = null;
+
         // Enhanced appendMessage function with better loading indicator
         function appendMessage(type, content, isStreaming = false) {
             const message = document.createElement('div');
@@ -1750,8 +1814,10 @@
         function createLoadingIndicator() {
             return `
                 <div class="typing-indicator">
-                    Thinking<div class="typing-dots">
-                        <span></span><span></span><span></span>
+                    <div class="typing-animation">
+                        <span></span>
+                        <span></span>
+                        <span></span>
                     </div>
                 </div>
             `;
@@ -1773,46 +1839,54 @@
             let buffer = '';
             const content = messageElement.querySelector('.message-bubble');
             
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-                
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data === '[DONE]') break;
-                        
-                        buffer += data;
-                        // Convert markdown as we receive it
-                        content.innerHTML = md.render(buffer);
-                        
-                        // Highlight code blocks in real-time
-                        content.querySelectorAll('pre code').forEach((block) => {
-                            if (!block.classList.contains('highlighted')) {
-                                Prism.highlightElement(block);
-                                block.classList.add('highlighted');
-                            }
-                        });
-                        
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6);
+                            if (data === '[DONE]') break;
+                            
+                            buffer += data;
+                            // Convert markdown as we receive it
+                            content.innerHTML = md.render(buffer);
+                            
+                            // Highlight code blocks in real-time
+                            content.querySelectorAll('pre code').forEach((block) => {
+                                if (!block.classList.contains('highlighted')) {
+                                    Prism.highlightElement(block);
+                                    block.classList.add('highlighted');
+                                }
+                            });
+                            
+                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                        }
                     }
                 }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    buffer += '\n\n> Generation stopped by user.';
+                } else {
+                    throw error;
+                }
+            } finally {
+                // Final render with complete formatting
+                content.innerHTML = md.render(buffer);
+                content.classList.remove('streaming');
+                
+                // Final highlight pass
+                content.querySelectorAll('pre code').forEach((block) => {
+                    Prism.highlightElement(block);
+                });
             }
-            
-            // Final render with complete formatting
-            content.innerHTML = md.render(buffer);
-            content.classList.remove('streaming');
-            
-            // Final highlight pass
-            content.querySelectorAll('pre code').forEach((block) => {
-                Prism.highlightElement(block);
-            });
         }
 
-        // Update askQuestion function to use new streaming
+        // Update askQuestion function to use AbortController
         async function askQuestion() {
             if (isProcessing || !questionInput.value.trim()) return;
 
@@ -1830,22 +1904,30 @@
             questionInput.value = '';
             isProcessing = true;
             askButton.disabled = true;
+            
+            // Show stop button and hide ask button
+            askButton.style.display = 'none';
+            document.getElementById('stopButton').classList.add('visible');
 
             appendMessage('user', question);
             const assistantMessage = appendMessage('assistant', '', true);
 
             try {
+                // Create new AbortController for this request
+                currentController = new AbortController();
+                
                 const response = await fetch('/query', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                    question,
-                    context: {
-                        type: currentQueryType,
-                        repo: currentRepo,
-                        files: Array.from(selectedFiles)
-                    }
-                    })
+                        question,
+                        context: {
+                            type: currentQueryType,
+                            repo: currentRepo,
+                            files: Array.from(selectedFiles)
+                        }
+                    }),
+                    signal: currentController.signal
                 });
 
                 if (!response.ok) throw new Error('Network response was not ok');
@@ -1853,10 +1935,18 @@
 
             } catch (error) {
                 console.error('Error:', error);
-                assistantMessage.querySelector('.message-bubble').innerHTML = md.render('> Error: Failed to process your question. Please try again.');
+                if (error.name !== 'AbortError') {
+                    assistantMessage.querySelector('.message-bubble').innerHTML = md.render('> Error: Failed to process your question. Please try again.');
+                }
             } finally {
                 isProcessing = false;
                 askButton.disabled = false;
+                currentController = null;
+                
+                // Hide stop button and show ask button
+                document.getElementById('stopButton').classList.remove('visible');
+                askButton.style.display = 'block';
+                
                 questionInput.focus();
             }
         }
@@ -1875,24 +1965,48 @@
         // Soru sorma butonunu dinle
         askButton.addEventListener('click', askQuestion);
 
+        // Add stop button functionality
+        document.getElementById('stopButton').addEventListener('click', () => {
+            if (currentController) {
+                currentController.abort();
+            }
+        });
+
         // Update the script section to handle message formatting
         function formatResponse(text) {
-            // Replace newlines with <br> tags
-            text = text.replace(/\n/g, '<br>');
+            // First, handle HTML tags that might be in the response
+            text = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
             
-            // Format code blocks
+            // Handle headers with proper spacing
+            text = text.replace(/^(#{1,6})\s*(.+)$/gm, (match, hashes, content) => {
+                const level = hashes.length;
+                return `<h${level} class="response-header">${content}</h${level}><br>`;
+            });
+
+            // Handle lists with proper indentation
+            text = text.replace(/^[-*]\s+(.+)$/gm, '<li>$1</li>');
+            text = text.replace(/(<li>.*?<\/li>(\n|$))+/g, '<ul>$&</ul><br>');
+            
+            // Format code blocks with proper spacing and syntax highlighting
             text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-                return `<pre><code class="language-${lang || 'plaintext'}">${code.trim()}</code></pre>`;
+                return `<br><pre><code class="language-${lang || 'plaintext'}">${code.trim()}</code></pre><br>`;
             });
             
             // Format inline code
             text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
             
-            // Format file paths
-            text = text.replace(/📄\s([^\n]+)/g, '<span class="file-path">📄 $1</span>');
+            // Format file paths with proper spacing
+            text = text.replace(/📄\s([^\n]+)/g, '<br><span class="file-path">📄 $1</span><br>');
             
-            // Format notes
-            text = text.replace(/>\s([^\n]+)/g, '<div class="note">$1</div>');
+            // Format blockquotes/notes with proper spacing
+            text = text.replace(/>\s([^\n]+)/g, '<br><div class="note">$1</div><br>');
+            
+            // Handle paragraphs and line breaks
+            text = text.replace(/\n\n+/g, '<br><br>');  // Multiple newlines to double break
+            text = text.replace(/\n/g, '<br>');         // Single newlines to break
+            
+            // Clean up any excessive breaks
+            text = text.replace(/<br\s*\/?>\s*(<br\s*\/?>)+/g, '<br><br>');
             
             return text;
         }
