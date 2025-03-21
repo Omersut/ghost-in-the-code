@@ -575,48 +575,55 @@ class ProjectAssistant:
                     f"{self.ollama_url}/api/generate",
                     json={
                         "model": "mistral",
-                        "prompt": prompt + "\n\nFormat your response using EXACTLY these HTML rules:\n\n" +
-                        "1. Basic Structure:\n" +
-                        "   - Start with overview in <p> tags\n" +
-                        "   - Use <h2> for main sections (NEVER use h1)\n" +
-                        "   - Use <h3> for subsections\n" +
-                        "   - Each paragraph in separate <p> tags\n\n" +
-                        "2. Code Formatting:\n" +
-                        "   For code blocks use EXACTLY this format:\n" +
-                        "   <pre><code class='language-[language]'>\n" +
-                        "   your code here\n" +
-                        "   </code></pre>\n\n" +
-                        "   For inline code use: <code>code here</code>\n\n" +
-                        "3. List Formatting:\n" +
-                        "   For unordered lists use EXACTLY:\n" +
-                        "   <ul>\n" +
-                        "     <li>First item</li>\n" +
-                        "     <li>Second item</li>\n" +
-                        "   </ul>\n\n" +
-                        "   For ordered lists use EXACTLY:\n" +
-                        "   <ol>\n" +
-                        "     <li>First item</li>\n" +
-                        "     <li>Second item</li>\n" +
-                        "   </ol>\n\n" +
-                        "4. Other Elements:\n" +
-                        "   - Use <strong> for emphasis\n" +
-                        "   - Use <blockquote> for important notes\n" +
-                        "   - Add line breaks between sections\n\n" +
-                        "Example Structure:\n\n" +
-                        "<p>Overview paragraph here...</p>\n\n" +
-                        "<h2>Main Section</h2>\n" +
-                        "<p>Section content here...</p>\n\n" +
-                        "<h3>Subsection</h3>\n" +
-                        "<p>Subsection content here...</p>\n\n" +
-                        "<pre><code class='language-javascript'>\n" +
-                        "function example() {\n" +
-                        "    return true;\n" +
-                        "}\n" +
-                        "</code></pre>\n\n" +
-                        "<ul>\n" +
-                        "  <li>List item one</li>\n" +
-                        "  <li>List item two</li>\n" +
-                        "</ul>",
+                        "prompt": f"""You are a code analysis assistant. Your task is to answer questions STRICTLY based on the provided code context.
+
+IMPORTANT RULES:
+1. ONLY use information from the provided code snippets/context
+2. DO NOT make assumptions about code you cannot see
+3. DO NOT reference external libraries, documentation, or knowledge
+4. If you cannot answer based on the provided context, clearly state that
+5. If you need to see more code to give a complete answer, say so
+6. DO NOT make up or imagine code that isn't shown
+7. When referencing code, quote the exact lines from the context
+
+CONTEXT:
+{prompt}
+
+Remember: Stay focused on the actual code shown above. If you're unsure or need more context, it's better to say so than to make assumptions.
+
+Format your response using EXACTLY these HTML rules:
+
+1. Basic Structure:
+   - Start with overview in <p> tags
+   - Use <h2> for main sections (NEVER use h1)
+   - Use <h3> for subsections
+   - Each paragraph in separate <p> tags
+
+2. Code Formatting:
+   For code blocks use EXACTLY this format:
+   <pre><code class='language-[language]'>
+   your code here
+   </code></pre>
+
+   For inline code use: <code>code here</code>
+
+3. List Formatting:
+   For unordered lists use EXACTLY:
+   <ul>
+     <li>First item</li>
+     <li>Second item</li>
+   </ul>
+
+   For ordered lists use EXACTLY:
+   <ol>
+     <li>First item</li>
+     <li>Second item</li>
+   </ol>
+
+4. Other Elements:
+   - Use <strong> for emphasis
+   - Use <blockquote> for important notes
+   - Add line breaks between sections""",
                         "stream": True
                     }
                 ) as response:
