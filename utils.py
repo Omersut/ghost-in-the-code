@@ -292,7 +292,6 @@ class ProjectAssistant:
                 # Test ve dökümantasyon
                 'test',
                 'tests',
-                'docs',
                 'examples',
                 'samples',
                 

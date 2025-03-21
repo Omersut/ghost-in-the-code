@@ -1,5 +1,8 @@
 documents: null
 repositories:
-  - is_processed: true
-    local_path: D:/example
-    name: example
+- is_processed: true
+  local_path: D:/example
+  name: example
+- is_processed: false
+  local_path: C:/Projects/SanTSG/san-docs-rag/docs/tv
+  name: tv
