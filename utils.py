@@ -265,7 +265,7 @@ class ProjectAssistant:
             # İşlenmeyecek klasörler
             IGNORED_DIRS = {
                 # Build ve paket klasörleri
-                'node_modules', 'bin', 'obj', 'dist', 'build', 'target', 'packages',
+                'node_modules', 'bin', 'obj', 'dist', 'build', 'target', 'packages', 'jenkins_home'
                 # Versiyon kontrol ve IDE
                 '.git', '.vs', '.idea', '.vscode', '__pycache__',
                 # Ortam klasörleri
