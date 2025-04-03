@@ -417,6 +417,7 @@
             color: var(--text);
             max-width: 85%;
             overflow-wrap: break-word;
+            white-space: pre-line;
         }
 
         /* Heading Styles */
@@ -1849,14 +1850,15 @@
             const message = document.createElement('div');
             message.className = `message ${type}-message`;
             
-            const formattedContent = type === 'user' ? content : (isStreaming ? createLoadingIndicator() : formatResponse(content));
+            // Add line breaks after periods for non-streaming messages
+            const formattedContent = type === 'user' ? content : (isStreaming ? createLoadingIndicator() : formatResponse(content).replace(/\./g, '.\n'));
             
             message.innerHTML = `
                 <div class="message-meta">
                     <span>${type === 'user' ? 'You' : 'AI Assistant'}</span>
                     <span>•</span>
                     <span>${formatTime(new Date())}</span>
-            </div>
+                </div>
                 <div class="message-bubble${isStreaming ? ' streaming' : ''}">${formattedContent}</div>
             `;
             
@@ -1915,8 +1917,8 @@
                             if (data === '[DONE]') break;
                             
                             buffer += data;
-                            // Convert markdown as we receive it
-                            content.innerHTML = md.render(buffer);
+                            // Convert markdown and add line breaks after periods
+                            content.innerHTML = md.render(buffer.replace(/\./g, '.\n'));
                             
                             // Highlight code blocks in real-time
                             content.querySelectorAll('pre code').forEach((block) => {
@@ -1937,8 +1939,8 @@
                     throw error;
                 }
             } finally {
-                // Final render with complete formatting
-                content.innerHTML = md.render(buffer);
+                // Final render with complete formatting and line breaks
+                content.innerHTML = md.render(buffer.replace(/\./g, '.\n'));
                 content.classList.remove('streaming');
                 
                 // Final highlight pass
